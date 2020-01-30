@@ -24,7 +24,7 @@ RUN apt-get update && apt-get install -y apt-transport-https gnupg lsb-release \
     && apt-get download nginx-module-sigsci-nxo=${NGXVERSION}\* \
     && (dpkg --force-all -i nginx-module-sigsci-nxo_${NGXVERSION}*.deb || true) \
     && rm -f nginx-module-sigsci-nxo_${NGXVERSION}*.deb \
-    && sed -i 's@^#pid.*@&\nload_module /usr/lib/nginx/modules/ngx_http_sigsci_nxo_module-${NGXVERSION}.so;\n@' /usr/local/openresty/nginx/conf/nginx.conf \
+    && sed -i "s@^#pid.*@&\nload_module /usr/lib/nginx/modules/ngx_http_sigsci_nxo_module-${NGXVERSION}.so;\n@" /usr/local/openresty/nginx/conf/nginx.conf \
     && rm -rf /var/lib/apt/lists/*
 
 # Change back to the www-data user for executing nginx at runtime
