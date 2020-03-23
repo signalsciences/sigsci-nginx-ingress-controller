@@ -11,7 +11,11 @@ USER root
 #       the correct version of nginx installed; this applies
 #       to both nginx.org and openresty nginx distributions.
 RUN apk update && apk add --no-cache gnupg \
-    # Figure out which debian release/codename this is
+    # Figure out which alpine release this is
+    && ALPINE_RELEASE=$(cat /etc/os-release | grep 'VERSION_ID=\s*' | sed 's/^VERSION_ID=\s*//' | sed 's/\./\_/g') \
+    && echo "${ALPINE_RELEASE::-2}" \
+    # Figure out which nginx is installed in the container
+    && NGXVERSION=$(nginx -v 2>&1 | sed 's%^[^/]*/\([0-9]*\.[0-9]*\.[0-9]*\).*%\1%') \
     && echo 'hosts: files dns' > /etc/nsswitch.conf \
     && apk --no-cache add ca-certificates libcap \
     && addgroup -S sigsci && adduser -h /sigsci -S -G sigsci sigsci \
