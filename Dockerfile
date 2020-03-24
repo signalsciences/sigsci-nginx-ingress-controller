@@ -12,21 +12,31 @@ USER root
 #       to both nginx.org and openresty nginx distributions.
 RUN apk update && apk add --no-cache gnupg \
     # Figure out which alpine release this is
-    && ALPINE_RELEASE=$(cat /etc/os-release | grep 'VERSION_ID=\s*' | sed 's/^VERSION_ID=\s*//' | sed 's/\./\_/g') \
-    && echo "${ALPINE_RELEASE::-2}" \
+    && ALPINE_RELEASE=$(cat /etc/alpine-release | sed 's/\./\_/g') \
+    && ALPINE_RELEASE=${ALPINE_RELEASE::-2} \
     # Figure out which nginx is installed in the container
     && NGXVERSION=$(nginx -v 2>&1 | sed 's%^[^/]*/\([0-9]*\.[0-9]*\.[0-9]*\).*%\1%') \
-    && echo 'hosts: files dns' > /etc/nsswitch.conf \
-    && apk --no-cache add ca-certificates libcap \
-    && addgroup -S sigsci && adduser -h /sigsci -S -G sigsci sigsci \
-    && mkdir -m 0500 -p /sigsci/bin && mkdir -m 0700 -p /sigsci/tmp && chown -R sigsci:sigsci /sigsci \
-    && cd /sigsci/bin \
-    && wget -O ./sigsci-agent_latest.tar.gz https://dl.signalsciences.net/sigsci-agent/sigsci-agent_latest.tar.gz \
-    && tar xvfz ./sigsci-agent_latest.tar.gz \
-    && chmod 0500 /sigsci /sigsci/bin/* \
-    && chown sigsci:sigsci /sigsci/bin/sigsci-agent
+    && echo ${NGXVERSION} \
+    # Get the latest version of the sigsci nginx native module
+    && MODULE_VERSION=$(wget -O- -q https://dl.signalsciences.net/sigsci-module-nginx-native/VERSION) \
+    # Get the correct sigsci nginx native module based on alpine version, nginx version, and module version
+    && wget -O /tmp/nginx-module-sigsci-nxo_${NGXVERSION}-143-alpine${ALPINE_RELEASE}_noarch.apk https://dl.signalsciences.net/sigsci-module-nginx-native/${MODULE_VERSION}/alpine/alpine${ALPINE_RELEASE}/nginx-module-sigsci-nxo_${NGXVERSION}-143-alpine${ALPINE_RELEASE}_noarch.apk
+    # # Install the sigsci native nginx module and update nginx.conf
+    # && apk add --no-cache --allow-untrusted /tmp/nginx-module-sigsci-nxo_${NGXVERSION}-143-alpine${ALPINE_RELEASE}_noarch.apk \
+    # && sed -i 's@^pid.*@&\nload_module /usr/lib/nginx/modules/ndk_http_module.so;\nload_module /usr/lib/nginx/modules/ngx_http_sigsci_module.so;\n@' /etc/nginx/nginx.conf \
+    # # cleanup
+    # && rm /tmp/nginx-module-sigsci-nxo_${NGXVERSION}-143-alpine${ALPINE_RELEASE}_noarch.apk
+    
+    # && echo 'hosts: files dns' > /etc/nsswitch.conf \
+    # && apk --no-cache add ca-certificates libcap \
+    # && addgroup -S sigsci && adduser -h /sigsci -S -G sigsci sigsci \
+    # && mkdir -m 0500 -p /sigsci/bin && mkdir -m 0700 -p /sigsci/tmp && chown -R sigsci:sigsci /sigsci \
+    # && cd /sigsci/bin \
+    # && wget -O ./sigsci-agent_latest.tar.gz https://dl.signalsciences.net/sigsci-agent/sigsci-agent_latest.tar.gz \
+    # && tar xvfz ./sigsci-agent_latest.tar.gz \
+    # && chmod 0500 /sigsci /sigsci/bin/* \
+    # && chown sigsci:sigsci /sigsci/bin/sigsci-agent
 
-ENV PATH="/sigsci/bin:${PATH}"
 # RUN apt-get update && apt-get install -y apt-transport-https gnupg lsb-release \
 #     # Figure out which debian release/codename this is
 #     && CODENAME=$(lsb_release -c | sed 's/^Codename:\s*//') \
@@ -46,4 +56,4 @@ ENV PATH="/sigsci/bin:${PATH}"
 #     && rm -rf /var/lib/apt/lists/*
 
 # # Change back to the www-data user for executing nginx at runtime
-# USER www-data
+USER www-data
