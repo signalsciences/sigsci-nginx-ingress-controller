@@ -1,5 +1,5 @@
 # ARG NGINX_INGRESS_VERSION=${NGINX_INGRESS_VERSION:-latest}
-ARG NGINX_INGRESS_VERSION="0.27.1"
+ARG NGINX_INGRESS_VERSION="0.30.0"
 FROM quay.io/kubernetes-ingress-controller/nginx-ingress-controller:${NGINX_INGRESS_VERSION}
 ARG PKGNAME=${PKGNAME:-nginx-module-sigsci-nxo}
 
@@ -16,15 +16,17 @@ RUN apk update && apk add --no-cache gnupg \
     && ALPINE_RELEASE=${ALPINE_RELEASE::-2} \
     # Figure out which nginx is installed in the container
     && NGXVERSION=$(nginx -v 2>&1 | sed 's%^[^/]*/\([0-9]*\.[0-9]*\.[0-9]*\).*%\1%') \
-    && echo ${NGXVERSION} \
     # Get the latest version of the sigsci nginx native module
     && MODULE_VERSION=$(wget -O- -q https://dl.signalsciences.net/sigsci-module-nginx-native/VERSION) \
     # Get the correct sigsci nginx native module based on alpine version, nginx version, and module version
-    && wget -O /tmp/nginx-module-sigsci-nxo_${NGXVERSION}-143-alpine${ALPINE_RELEASE}_noarch.apk https://dl.signalsciences.net/sigsci-module-nginx-native/${MODULE_VERSION}/alpine/alpine${ALPINE_RELEASE}/nginx-module-sigsci-nxo_${NGXVERSION}-143-alpine${ALPINE_RELEASE}_noarch.apk
-    # # Install the sigsci native nginx module and update nginx.conf
-    # && apk add --no-cache --allow-untrusted /tmp/nginx-module-sigsci-nxo_${NGXVERSION}-143-alpine${ALPINE_RELEASE}_noarch.apk \
-    # && sed -i 's@^pid.*@&\nload_module /usr/lib/nginx/modules/ndk_http_module.so;\nload_module /usr/lib/nginx/modules/ngx_http_sigsci_module.so;\n@' /etc/nginx/nginx.conf \
-    # # cleanup
+    && wget -O /tmp/nginx-module-sigsci-nxo_${NGXVERSION}-144-alpine${ALPINE_RELEASE}_noarch.apk https://dl.signalsciences.net/sigsci-module-nginx-native/${MODULE_VERSION}/alpine/alpine${ALPINE_RELEASE}/nginx-module-sigsci-nxo_${NGXVERSION}-144-alpine${ALPINE_RELEASE}_noarch.apk \
+    # hack
+    # && printf "%s%s%s\n" "http://nginx.org/packages/mainline/alpine/v" `egrep -o '^[0-9]+\.[0-9]+' /etc/alpine-release` "/main" | tee -a /etc/apk/repositories \
+    # && apk add --allow-untrusted --virtual mypack nginx@${NGXVERSION}-r1 \
+    # Install the sigsci native nginx module and update nginx.conf
+    && (apk add --no-cache --allow-untrusted --force-broken-world /tmp/nginx-module-sigsci-nxo_${NGXVERSION}-144-alpine${ALPINE_RELEASE}_noarch.apk || true) \
+    && sed -i 's@^pid.*@&\nload_module /usr/lib/nginx/modules/ngx_http_sigsci_module.so;\n@' /etc/nginx/nginx.conf
+    # cleanup
     # && rm /tmp/nginx-module-sigsci-nxo_${NGXVERSION}-143-alpine${ALPINE_RELEASE}_noarch.apk
     
     # && echo 'hosts: files dns' > /etc/nsswitch.conf \
