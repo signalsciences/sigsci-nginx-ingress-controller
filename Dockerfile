@@ -2,6 +2,7 @@
 ARG NGINX_INGRESS_VERSION="0.30.0"
 FROM quay.io/kubernetes-ingress-controller/nginx-ingress-controller:${NGINX_INGRESS_VERSION}
 ARG PKGNAME=${PKGNAME:-nginx-module-sigsci-nxo}
+ARG BUILDNUMBER=146
 
 # Change to the root user to update the container
 USER root
@@ -19,43 +20,14 @@ RUN apk update && apk add --no-cache gnupg \
     # Get the latest version of the sigsci nginx native module
     && MODULE_VERSION=$(wget -O- -q https://dl.signalsciences.net/sigsci-module-nginx-native/VERSION) \
     # Get the correct sigsci nginx native module based on alpine version, nginx version, and module version
-    && wget -O /tmp/nginx-module-sigsci-nxo_${NGXVERSION}-144-alpine${ALPINE_RELEASE}_noarch.apk https://dl.signalsciences.net/sigsci-module-nginx-native/${MODULE_VERSION}/alpine/alpine${ALPINE_RELEASE}/nginx-module-sigsci-nxo_${NGXVERSION}-144-alpine${ALPINE_RELEASE}_noarch.apk \
-    # hack
-    # && printf "%s%s%s\n" "http://nginx.org/packages/mainline/alpine/v" `egrep -o '^[0-9]+\.[0-9]+' /etc/alpine-release` "/main" | tee -a /etc/apk/repositories \
-    # && apk add --allow-untrusted --virtual mypack nginx@${NGXVERSION}-r1 \
-    # Install the sigsci native nginx module and update nginx.conf
-    && (apk add --no-cache --allow-untrusted --force-broken-world /tmp/nginx-module-sigsci-nxo_${NGXVERSION}-144-alpine${ALPINE_RELEASE}_noarch.apk || true) \
-    && sed -i 's@^pid.*@&\nload_module /usr/lib/nginx/modules/ngx_http_sigsci_module.so;\n@' /etc/nginx/nginx.conf
+    && wget -O /tmp/nginx-module-sigsci-nxo_${NGXVERSION}-${BUILDNUMBER}-alpine${ALPINE_RELEASE}.tar.gz https://dl.signalsciences.net/sigsci-module-nginx-native/${MODULE_VERSION}/alpine/alpine${ALPINE_RELEASE}/nginx-module-sigsci-nxo_${NGXVERSION}-${BUILDNUMBER}-alpine${ALPINE_RELEASE}.tar.gz \
+    # Manually install the sigsci native nginx module and update nginx.conf
+    tar xvfz /tmp/nginx-module-sigsci-nxo_${NGXVERSION}-${BUILDNUMBER}-alpine${ALPINE_RELEASE}.tar.gz || : \
+    && mkdir -p /usr/lib/nginx/modules \
+    && mv /tmp/ngx_http_sigsci_nxo_module-${NGXVERSION}.so /usr/lib/nginx/modules/ngx_http_sigsci_module.so \
+    && ln -s /usr/lib/nginx/modules/ngx_http_sigsci_module.so /etc/nginx/modules/ngx_http_sigsci_module.so \
+    && sed -i 's@^pid.*@&\nload_module /usr/lib/nginx/modules/ngx_http_sigsci_module.so;\n@' /etc/nginx/nginx.conf \
     # cleanup
-    # && rm /tmp/nginx-module-sigsci-nxo_${NGXVERSION}-143-alpine${ALPINE_RELEASE}_noarch.apk
-    
-    # && echo 'hosts: files dns' > /etc/nsswitch.conf \
-    # && apk --no-cache add ca-certificates libcap \
-    # && addgroup -S sigsci && adduser -h /sigsci -S -G sigsci sigsci \
-    # && mkdir -m 0500 -p /sigsci/bin && mkdir -m 0700 -p /sigsci/tmp && chown -R sigsci:sigsci /sigsci \
-    # && cd /sigsci/bin \
-    # && wget -O ./sigsci-agent_latest.tar.gz https://dl.signalsciences.net/sigsci-agent/sigsci-agent_latest.tar.gz \
-    # && tar xvfz ./sigsci-agent_latest.tar.gz \
-    # && chmod 0500 /sigsci /sigsci/bin/* \
-    # && chown sigsci:sigsci /sigsci/bin/sigsci-agent
-
-# RUN apt-get update && apt-get install -y apt-transport-https gnupg lsb-release \
-#     # Figure out which debian release/codename this is
-#     && CODENAME=$(lsb_release -c | sed 's/^Codename:\s*//') \
-#     # The sid (unstable) codname is not supported, but buster (previous stable) will work
-#     && if [ "${CODENAME}" = "sid" ]; then CODENAME="buster"; fi \
-     # Figure out which nginx is installed in the container
-#     && NGXVERSION=$(nginx -v 2>&1 | sed 's%^[^/]*/\([0-9]*\.[0-9]*\.[0-9]*\).*%\1%') \
-     # Add the signal sciences apt repo
-#     && (curl -s -S -L https://apt.signalsciences.net/release/gpgkey | apt-key add -) \
-#     && (echo "deb https://apt.signalsciences.net/release/debian/ ${CODENAME} main" > /etc/apt/sources.list.d/sigsci-release.list) \
-#     && apt-get update \
-#     # Download and force install the package as nginx was installed from source not package
-#     && apt-get download nginx-module-sigsci-nxo=${NGXVERSION}\* \
-#     && (dpkg --force-all -i nginx-module-sigsci-nxo_${NGXVERSION}*.deb || true) \
-#     && rm -f nginx-module-sigsci-nxo_${NGXVERSION}*.deb \
-#     && sed -i "s@^#pid.*@&\nload_module /usr/lib/nginx/modules/ngx_http_sigsci_nxo_module-${NGXVERSION}.so;\n@" /usr/local/openresty/nginx/conf/nginx.conf \
-#     && rm -rf /var/lib/apt/lists/*
-
-# # Change back to the www-data user for executing nginx at runtime
+    && rm /tmp/nginx-module-sigsci-nxo_${NGXVERSION}-${BUILDNUMBER}-alpine${ALPINE_RELEASE}.tar.gz /tmp/*.so
+# Change back to the www-data user for executing nginx at runtime
 USER www-data
