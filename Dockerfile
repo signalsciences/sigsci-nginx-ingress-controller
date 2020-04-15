@@ -1,7 +1,6 @@
 ARG NGINX_INGRESS_VERSION=${NGINX_INGRESS_VERSION:-latest}
 FROM quay.io/kubernetes-ingress-controller/nginx-ingress-controller:${NGINX_INGRESS_VERSION}
 ARG PKGNAME=${PKGNAME:-nginx-module-sigsci-nxo}
-ARG BUILD_NUMBER=146
 
 # Change to the root user to update the container
 USER root
