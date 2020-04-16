@@ -1,4 +1,4 @@
-ARG NGINX_INGRESS_VERSION=${NGINX_INGRESS_VERSION:-latest}
+ARG NGINX_INGRESS_VERSION=${NGINX_INGRESS_VERSION:-0.30.0}
 FROM quay.io/kubernetes-ingress-controller/nginx-ingress-controller:${NGINX_INGRESS_VERSION}
 ARG PKGNAME=${PKGNAME:-nginx-module-sigsci-nxo}
 
