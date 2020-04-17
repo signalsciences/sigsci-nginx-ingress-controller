@@ -1,7 +1,6 @@
-ARG NGINX_INGRESS_VERSION=${NGINX_INGRESS_VERSION:-latest}
+ARG NGINX_INGRESS_VERSION=${NGINX_INGRESS_VERSION:-0.30.0}
 FROM quay.io/kubernetes-ingress-controller/nginx-ingress-controller:${NGINX_INGRESS_VERSION}
 ARG PKGNAME=${PKGNAME:-nginx-module-sigsci-nxo}
-ARG BUILD_NUMBER=146
 
 # Change to the root user to update the container
 USER root
@@ -19,7 +18,7 @@ RUN apk update && apk add --no-cache gnupg wget --virtual ./build_deps \
     # Get the latest version of the sigsci nginx native module
     && MODULE_VERSION=$(wget -O- -q https://dl.signalsciences.net/sigsci-module-nginx-native/VERSION) \
     # Get the correct sigsci nginx native module based on alpine version, nginx version, and module version
-    && wget -O /tmp/nginx-module-sigsci-nxo_${NGXVERSION}-${BUILD_NUMBER}-alpine${ALPINE_RELEASE}.tar.gz https://dl.signalsciences.net/sigsci-module-nginx-native/${MODULE_VERSION}/alpine/alpine${ALPINE_RELEASE}/nginx-module-sigsci-nxo_${NGXVERSION}-${BUILD_NUMBER}-alpine${ALPINE_RELEASE}.tar.gz \
+    && wget -O /tmp/nginx-module-sigsci-nxo_${NGXVERSION}-alpine${ALPINE_RELEASE}.tar.gz https://dl.signalsciences.net/sigsci-module-nginx-native/${MODULE_VERSION}/alpine/alpine${ALPINE_RELEASE}/nginx-module-sigsci-nxo_${NGXVERSION}-alpine${ALPINE_RELEASE}.tar.gz \
     # Manually install the sigsci native nginx module and update nginx.conf
     && tar xvfz /tmp/nginx-module-sigsci-nxo_${NGXVERSION}-${BUILD_NUMBER}-alpine${ALPINE_RELEASE}.tar.gz -C /tmp || : \
     && mkdir -p /usr/lib/nginx/modules \
