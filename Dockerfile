@@ -21,6 +21,7 @@ RUN apk update && apk add --no-cache gnupg wget --virtual ./build_deps \
     && wget https://apk.signalsciences.net/sigsci_apk.pub && mv sigsci_apk.pub /etc/apk/keys \
     && echo "https://apk.signalsciences.net/${ALPINE_RELEASE}/main" | tee -a /etc/apk/repositories \
     && apk add ${PKGNAME}-${NGXVERSION} \
+    && ln -s /usr/lib/nginx/modules/ngx_http_sigsci_module.so /etc/nginx/modules/ngx_http_sigsci_module.so \
     && sed -i 's@^pid.*@&\nload_module /usr/lib/nginx/modules/ngx_http_sigsci_module.so;\n@' /etc/nginx/nginx.conf \
     # cleanup
     && apk del --no-cache ./build_deps
