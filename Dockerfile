@@ -18,15 +18,11 @@ RUN apk update && apk add --no-cache gnupg wget --virtual ./build_deps \
     # Get the latest version of the sigsci nginx native module
     && MODULE_VERSION=$(wget -O- -q https://dl.signalsciences.net/sigsci-module-nginx-native/VERSION) \
     # Get the correct sigsci nginx native module based on alpine version, nginx version, and module version
-    && wget -O /tmp/nginx-module-sigsci-nxo_${NGXVERSION}-${ALPINE_RELEASE}.tar.gz https://dl.signalsciences.net/sigsci-module-nginx-native/${MODULE_VERSION}/alpine/${ALPINE_RELEASE}/nginx-module-sigsci-nxo_${NGXVERSION}-${ALPINE_RELEASE}.tar.gz \
-    # Manually install the sigsci native nginx module and update nginx.conf
-    && tar xvfz /tmp/nginx-module-sigsci-nxo_${NGXVERSION}-${ALPINE_RELEASE}.tar.gz -C /tmp || : \
-    && mkdir -p /usr/lib/nginx/modules \
-    && mv /tmp/ngx_http_sigsci_nxo_module-${NGXVERSION}.so /usr/lib/nginx/modules/ngx_http_sigsci_module.so \
-    && ln -s /usr/lib/nginx/modules/ngx_http_sigsci_module.so /etc/nginx/modules/ngx_http_sigsci_module.so \
+    && wget https://apk.signalsciences.net/sigsci_apk.pub && mv sigsci_apk.pub /etc/apk/keys \
+    && echo "https://apk.signalsciences.net/${ALPINE_RELEASE}/main" | tee -a /etc/apk/repositories \
+    && apk add ${PKGNAME}-${NGXVERSION} \
     && sed -i 's@^pid.*@&\nload_module /usr/lib/nginx/modules/ngx_http_sigsci_module.so;\n@' /etc/nginx/nginx.conf \
     # cleanup
-    && rm /tmp/nginx-module-sigsci-nxo_${NGXVERSION}-${ALPINE_RELEASE}.tar.gz /tmp/*.so \
     && apk del --no-cache ./build_deps
 # Change back to the www-data user for executing nginx at runtime
 USER www-data
