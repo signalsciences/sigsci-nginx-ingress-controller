@@ -24,6 +24,7 @@ RUN apk update && apk add --no-cache gnupg wget --virtual ./build_deps \
     && ln -s /usr/lib/nginx/modules/ngx_http_sigsci_module.so /etc/nginx/modules/ngx_http_sigsci_module.so \
     && sed -i 's@^pid.*@&\nload_module /usr/lib/nginx/modules/ngx_http_sigsci_module.so;\n@' /etc/nginx/nginx.conf \
     # cleanup
-    && apk del --no-cache ./build_deps
+    && apk del --no-cache ./build_deps \
+    && rm /etc/apk/keys/sigsci_apk.pub
 # Change back to the www-data user for executing nginx at runtime
 USER www-data
