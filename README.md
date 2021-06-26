@@ -15,10 +15,10 @@ The following are steps to install [kubernetes/ingress-nginx](https://github.com
 1) Add the [kubernetes/ingress-nginx](https://github.com/kubernetes/ingress-nginx/tree/master/charts/ingress-nginx) repo  
 `helm repo add ingress-nginx https://kubernetes.github.io/ingress-nginx`
 
-2) Add `SIGSCI_ACCESSKEYID` and `SIGSCI_SECRETACCESSKEY` to the [sigsci-values.yaml](sigsci-values.yml) file.
+2) Add `SIGSCI_ACCESSKEYID` and `SIGSCI_SECRETACCESSKEY` to the [sigsci-values.yaml](sigsci-values.yaml) file.
 
 3) Install ingress-nginx named `my-ingress` with override file  
-`helm install -f values-sigsci.yaml my-ingress ingress-nginx/ingress-nginx`
+`helm install -f sigsci-value.yaml my-ingress ingress-nginx/ingress-nginx`
 
 4) Here is an example Ingress template to test the controller. This file will vary based on indiviudal needs
 ```
