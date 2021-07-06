@@ -1,0 +1,79 @@
+name: Compare ingress version -- Build & publish if new version
+
+on:
+  schedule:
+    - cron: '0 22 * * *' # everyday at 3 PM PDT
+
+jobs:
+  # Compare kubernetes/ingress-nginx version with sigsci-nginx-ingress-controller version
+  # If new version build and push container to docker hub
+  # Create and tag new release
+  # Update sigsci-value.yaml file 
+  compare_versions:
+    runs-on: ubuntu-latest
+    outputs:
+      value: ${{ steps.tag.outputs.NO_CHANGE }}
+    steps:
+    - uses: actions/checkout@v1
+    - name: compare versions
+      id: tag
+      env:
+        REPO: signalsciences/sigsci-nginx-ingress-controller
+      run: |
+        INGRESS_LATEST=$(curl -sL https://api.github.com/repos/kubernetes/ingress-nginx/releases | grep "tag_name" | grep -m1 "controller" | cut -d '"' -f4 | cut -d 'v' -f2)
+        SIGSCI_LATEST=$(curl -sL https://api.github.com/repos/signalsciences/sigsci-nginx-ingress-controller/releases | grep "tag_name" | grep -m1 "tag_name" | cut -d '"' -f4)
+
+        version() { echo "$@" | awk -F. '{ printf("%d%03d%03d\n", $1,$2,$3); }'; }
+
+        if [ $(version $ingress) -eq $(version $sigsci) ]; then
+          echo "ingress-nginx version: $ingress -- matches sigsci version: $sigsci" 
+          echo "::set-output name=NO_CHANGE::true"
+        else
+          TAG=$INGRESS_LATEST
+          docker build . --file Dockerfile --build-arg NGINX_INGRESS_VERSION=v${TAG} --tag ${REPO}:${TAG}
+          echo ${{ secrets.DOCKER_PASSWORD }} | docker login -u ${{ secrets.DOCKER_USERNAME }} --password-stdin
+          docker push ${REPO}:${TAG}
+          echo NEW_TAG=$TAG >> $GITHUB_ENV
+          echo "::set-output name=NO_CHANGE::false"
+        fi
+    
+    - name: Create Release
+      if: ${{ steps.tag.outputs.NO_CHANGE == 'false' }}
+      uses: actions/create-release@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} # This token is provided by Actions, you do not need to create your own token
+      with:
+        tag_name: ${{ env.NEW_TAG }}
+        release_name: Match release ${{ env.NEW_TAG }}
+        body: |
+         Match release kubernetes/ingress-nginx v${{ env.NEW_TAG }} 
+        draft: false
+        prerelease: false
+
+    - name: Update sigsci-values.yaml
+      if: ${{ steps.tag.outputs.NO_CHANGE == 'false' }}
+      uses: mikefarah/yq@4bb2d04d437170e32b31cf399f4a3ead3de404a0
+      with:
+        cmd: NEW_TAG=${{env.NEW_TAG}} yq e '.controller.image.tag = env(NEW_TAG)' -i sigsci-values.yaml 
+
+    - name: Create Pull Request
+      uses: peter-evans/create-pull-request@v3
+      with:
+        token: ${{ secrets.GITHUB_TOKEN }}
+        commit-message: Latest kubernetes/ingress-nginx match release ${{env.NEW_TAG}}
+        committer: GitHub <noreply@github.com>
+        author: ${{ github.actor }} <${{ github.actor }}@users.noreply.github.com>
+        signoff: false
+        base: ${{ github.ref }}
+        delete-branch: true
+        title: 'Update sigsci-values.yaml override file'
+        body: |
+          Update sigsci-values.yaml override file with new version ${{ env.NEW_TAG }}
+
+        labels: |
+          releng
+          fbs
+          automated pr
+        assignees: signalsciences/releng
+        reviewers: signalsciences/releng
+        draft: false
