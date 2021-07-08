@@ -55,11 +55,10 @@ jobs:
     - name: Update sigsci-values.yaml & create PR
       if: ${{ steps.tag.outputs.NO_CHANGE == 'false' }}
       run: |
-        sed -ie "s/tag:.*/tag: ${{ env.NEW_TAG }}/g" sigsci-values.yaml
-        rm sigsci-values.yamle
+        sed -i "s/tag:.*/tag: ${{ env.NEW_TAG }}/g" sigsci-values.yaml
         git config --local user.email "github-actions[bot]@users.noreply.github.com"
         git config --local user.name "github-actions[bot]"
-        git commit -am "Automated PR - Match version"
+        git commit -am "Automated PR - Match upstream version"
         git push
 
         curl -X POST -u ${{ github.actor }}:${{ secrets.GITHUB_TOKEN }} \
