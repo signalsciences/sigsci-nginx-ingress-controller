@@ -11,6 +11,8 @@ jobs:
   # Update sigsci-value.yaml file 
   compare_versions:
     runs-on: ubuntu-latest
+    env:
+      GH_REPO: https://api.github.com/repos/signalsciences/sigsci-nginx-ingress-controller
     outputs:
       value: ${{ steps.tag.outputs.NO_CHANGE }}
     steps:
@@ -21,7 +23,7 @@ jobs:
         REPO: signalsciences/sigsci-nginx-ingress-controller
       run: |
         INGRESS_LATEST=$(curl -sL https://api.github.com/repos/kubernetes/ingress-nginx/releases | grep "tag_name" | grep -m1 "controller" | cut -d '"' -f4 | cut -d 'v' -f2)
-        SIGSCI_LATEST=$(curl -sL https://api.github.com/repos/signalsciences/sigsci-nginx-ingress-controller/releases | grep "tag_name" | grep -m1 "tag_name" | cut -d '"' -f4)
+        SIGSCI_LATEST=$(curl -sL ${{ env.GH_REPO }}/releases | grep "tag_name" | grep -m1 "tag_name" | cut -d '"' -f4)
 
         version() { echo "$@" | awk -F. '{ printf("%d%03d%03d\n", $1,$2,$3); }'; }
 
@@ -50,30 +52,33 @@ jobs:
         draft: false
         prerelease: false
 
-    - name: Update sigsci-values.yaml
+    - name: Update sigsci-values.yaml & create PR
       if: ${{ steps.tag.outputs.NO_CHANGE == 'false' }}
-      uses: mikefarah/yq@4bb2d04d437170e32b31cf399f4a3ead3de404a0
-      with:
-        cmd: NEW_TAG=${{env.NEW_TAG}} yq e '.controller.image.tag = env(NEW_TAG)' -i sigsci-values.yaml 
+      run: |
+        sed -ie "s/tag:.*/tag: ${{ env.NEW_TAG }}/g" sigsci-values.yaml
+        rm sigsci-values.yamle
+        git config --local user.email "github-actions[bot]@users.noreply.github.com"
+        git config --local user.name "github-actions[bot]"
+        git commit -am "Automated PR - Match version"
+        git push
 
-    - name: Create Pull Request
-      uses: peter-evans/create-pull-request@v3
-      with:
-        token: ${{ secrets.GITHUB_TOKEN }}
-        commit-message: Latest kubernetes/ingress-nginx match release ${{env.NEW_TAG}}
-        committer: GitHub <noreply@github.com>
-        author: ${{ github.actor }} <${{ github.actor }}@users.noreply.github.com>
-        signoff: false
-        base: ${{ github.ref }}
-        delete-branch: true
-        title: 'Update sigsci-values.yaml override file'
-        body: |
-          Update sigsci-values.yaml override file with new version ${{ env.NEW_TAG }}
+        curl -X POST -u ${{ github.actor }}:${{ secrets.GITHUB_TOKEN }} \
+        ${{ env.GH_REPO }}/pulls --data '{"head":"${{ github.ref }}","base":"main","body":"Automated PR","title":"Match Version ${{ env.NEW_TAG}}"}'
 
-        labels: |
-          releng
-          fbs
-          automated pr
-        assignees: signalsciences/releng
-        reviewers: signalsciences/releng
-        draft: false
+    - name: Pull latest PR Num
+      if: ${{ steps.tag.outputs.NO_CHANGE == 'false' }}
+      run: |
+        pr_number=$(curl -s \
+        -H "Accept: application/vnd.github.v3+json" \
+        -u ${{ github.actor }}:${{ secrets.GITHUB_TOKEN }} \
+        ${{ env.GH_REPO }}/pulls | jq -r '.[].number')
+        echo PR_NUM=$pr_number >> $GITHUB_ENV
+
+    - name: Add reviewers to latest PR
+      if: ${{ steps.tag.outputs.NO_CHANGE == 'false' }}
+      run: |
+        curl -s \
+        -H "Accept: application/vnd.github.v3+json" \
+        -u ${{ github.actor }}:${{ secrets.GITHUB_TOKEN }} \
+        ${{ env.GH_REPO }}/pulls/${{ env.PR_NUM }}/requested_reviewers \
+        --data '{"reviewers":["signalsciences/releng"]}'
