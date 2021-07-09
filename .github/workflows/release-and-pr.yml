@@ -1,0 +1,83 @@
+name: Produce Docker Image, GH Release & Create PR for Override File
+
+on:
+  schedule:
+    - cron: '0 15 * * *' # everyday at 8 AM PDT
+
+jobs:
+  # Compare kubernetes/ingress-nginx version with sigsci-nginx-ingress-controller version
+  # If new version build and push container to docker hub
+  # Create and tag new release
+  # Update sigsci-value.yaml file & create PR
+  compare_versions:
+    runs-on: ubuntu-latest
+    env:
+      GH_REPO: https://api.github.com/repos/signalsciences/sigsci-nginx-ingress-controller
+    outputs:
+      value: ${{ steps.tag.outputs.NO_CHANGE }}
+    steps:
+    - uses: actions/checkout@v1
+    - name: compare versions
+      id: tag
+      env:
+        REPO: signalsciences/sigsci-nginx-ingress-controller
+      run: |
+        INGRESS_LATEST=$(curl -sL https://api.github.com/repos/kubernetes/ingress-nginx/releases | grep "tag_name" | grep -m1 "controller" | cut -d '"' -f4 | cut -d 'v' -f2)
+        SIGSCI_LATEST=$(curl -sL ${{ env.GH_REPO }}/releases | grep "tag_name" | grep -m1 "tag_name" | cut -d '"' -f4)
+
+        version() { echo "$@" | awk -F. '{ printf("%d%03d%03d\n", $1,$2,$3); }'; }
+
+        if [ $(version $ingress) -eq $(version $sigsci) ]; then
+          echo "ingress-nginx version: $ingress -- matches sigsci version: $sigsci" 
+          echo "::set-output name=NO_CHANGE::true"
+        else
+          TAG=$INGRESS_LATEST
+          docker build . --file Dockerfile --build-arg NGINX_INGRESS_VERSION=v${TAG} --tag ${REPO}:${TAG}
+          echo ${{ secrets.DOCKER_PASSWORD }} | docker login -u ${{ secrets.DOCKER_USERNAME }} --password-stdin
+          docker push ${REPO}:${TAG}
+          echo NEW_TAG=$TAG >> $GITHUB_ENV
+          echo "::set-output name=NO_CHANGE::false"
+        fi
+    
+    - name: Create Release
+      if: ${{ steps.tag.outputs.NO_CHANGE == 'false' }}
+      uses: actions/create-release@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        tag_name: ${{ env.NEW_TAG }}
+        release_name: Match release ${{ env.NEW_TAG }}
+        body: |
+         Match release kubernetes/ingress-nginx v${{ env.NEW_TAG }} 
+        draft: false
+        prerelease: false
+
+    - name: Update sigsci-values.yaml & create PR
+      if: ${{ steps.tag.outputs.NO_CHANGE == 'false' }}
+      run: |
+        sed -i "s/tag:.*/tag: ${{ env.NEW_TAG }}/g" sigsci-values.yaml
+        git config --local user.email "github-actions[bot]@users.noreply.github.com"
+        git config --local user.name "github-actions[bot]"
+        git commit -am "Automated PR - Match upstream version"
+        git push
+
+        curl -X POST -u ${{ github.actor }}:${{ secrets.GITHUB_TOKEN }} \
+        ${{ env.GH_REPO }}/pulls --data '{"head":"${{ github.ref }}","base":"main","body":"Automated PR","title":"Match Version ${{ env.NEW_TAG}}"}'
+
+    - name: Pull latest PR Num
+      if: ${{ steps.tag.outputs.NO_CHANGE == 'false' }}
+      run: |
+        pr_number=$(curl -s \
+        -H "Accept: application/vnd.github.v3+json" \
+        -u ${{ github.actor }}:${{ secrets.GITHUB_TOKEN }} \
+        ${{ env.GH_REPO }}/pulls | jq -r '.[].number')
+        echo PR_NUM=$pr_number >> $GITHUB_ENV
+
+    - name: Add reviewers to latest PR
+      if: ${{ steps.tag.outputs.NO_CHANGE == 'false' }}
+      run: |
+        curl -s \
+        -H "Accept: application/vnd.github.v3+json" \
+        -u ${{ github.actor }}:${{ secrets.GITHUB_TOKEN }} \
+        ${{ env.GH_REPO }}/pulls/${{ env.PR_NUM }}/requested_reviewers \
+        --data '{"reviewers":["signalsciences/releng"]}'
