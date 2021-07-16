@@ -2,7 +2,7 @@ name: Produce Docker Image, GH Release & Create PR for Override File
 
 on:
   schedule:
-    - cron: '0 15 * * *' # everyday at 8 AM PDT
+    - cron: '0 13 * * 1-5' # M-F at 6 AM PDT
 
 jobs:
   # Compare kubernetes/ingress-nginx version with sigsci-nginx-ingress-controller version
@@ -27,8 +27,8 @@ jobs:
 
         version() { echo "$@" | awk -F. '{ printf("%d%03d%03d\n", $1,$2,$3); }'; }
 
-        if [ $(version $ingress) -eq $(version $sigsci) ]; then
-          echo "ingress-nginx version: $ingress -- matches sigsci version: $sigsci" 
+        if [ $(version $INGRESS_LATEST) -eq $(version $SIGSCI_LATEST) ]; then
+          echo "ingress-nginx version: $INGRESS_LATEST -- matches sigsci version: $SIGSCI_LATEST"
           echo "::set-output name=NO_CHANGE::true"
         else
           TAG=$INGRESS_LATEST
