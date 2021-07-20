@@ -16,7 +16,7 @@ jobs:
     outputs:
       value: ${{ steps.tag.outputs.NO_CHANGE }}
     steps:
-    - uses: actions/checkout@v1
+    - uses: actions/checkout@v2
     - name: compare versions
       id: tag
       env:
@@ -55,14 +55,14 @@ jobs:
     - name: Update sigsci-values.yaml & create PR
       if: ${{ steps.tag.outputs.NO_CHANGE == 'false' }}
       run: |
-        sed -i "s/tag:.*/tag: ${{ env.NEW_TAG }}/g" sigsci-values.yaml
         git config --local user.email "github-actions[bot]@users.noreply.github.com"
         git config --local user.name "github-actions[bot]"
-        git commit -am "Automated PR - Match upstream version"
-        git push
+        git checkout -b match-version-release
+        sed -i "s/tag:.*/tag: ${{ env.NEW_TAG }}/g" sigsci-values.yaml
+        git commit -am "Automated PR - Match upstream version" && git push -u origin match-version-release
 
         curl -X POST -u ${{ github.actor }}:${{ secrets.GITHUB_TOKEN }} \
-        ${{ env.GH_REPO }}/pulls --data '{"head":"${{ github.ref }}","base":"main","body":"Automated PR","title":"Match Version ${{ env.NEW_TAG}}"}'
+        ${{ env.GH_REPO }}/pulls --data '{"head":"match-version-release","base":"main","body":"Automated PR","title":"Match Version ${{ env.NEW_TAG}}"}'
 
     - name: Pull latest PR Num
       if: ${{ steps.tag.outputs.NO_CHANGE == 'false' }}
