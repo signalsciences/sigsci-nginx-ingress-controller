@@ -20,7 +20,7 @@ The following are steps to install [kubernetes/ingress-nginx](https://github.com
 3) Install with the release name `my-ingress` in the `default` namespace  
 `helm install -f sigsci-values.yaml my-ingress ingress-nginx/ingress-nginx`
 * You can specify a namespace with `-n` flag:  
-  `helm install -n NAMESPACE -f values-sigsci.yaml my-ingress ingress-nginx/ingress-nginx`
+  `helm install -n NAMESPACE -f sigsci-values.yaml my-ingress ingress-nginx/ingress-nginx`
 
 4) Create an Ingress resource. This step will vary depending on setup and supports a lot of configurations. Official documentation can be found regarding [Basic usage - host based routing](https://kubernetes.github.io/ingress-nginx/user-guide/basic-usage/)
 
