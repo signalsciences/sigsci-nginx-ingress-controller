@@ -1,0 +1,38 @@
+name: Manual - Produce Docker Image, GH Release & update sigsci-values.yaml
+
+on:
+  push:
+    branch:
+      - master
+      - lisa/add-workflow
+  pull_request:
+
+jobs:
+  # Manual workflow to backfill any failed/missed builds
+  # Update variable: TAG:
+  # This action will build and push the tagged in imaged to docker hub, build and push Github Tag
+  compare_versions:
+    runs-on: ubuntu-latest
+    env:
+      TAG: "0.49.1"
+    steps:
+    - uses: actions/checkout@v2
+    - name: compare versions
+      id: tag
+      env:
+        REPO: signalsciences/sigsci-nginx-ingress-controller
+      run: |
+          docker build . --file Dockerfile --build-arg NGINX_INGRESS_VERSION=v${TAG} --tag ${REPO}:${TAG}
+          echo ${{ secrets.DOCKER_PASSWORD }} | docker login -u ${{ secrets.DOCKER_USERNAME }} --password-stdin
+          docker push ${REPO}:${TAG}
+    
+    - name: Create Release
+      # if: github.ref == 'refs/heads/main'
+      uses: actions/create-release@v1
+      with:
+        tag_name: ${{ env.TAG }}
+        release_name: Match release ${{ env.TAG }}
+        body: |
+         Match release kubernetes/ingress-nginx v${{ env.TAG }} 
+        draft: false
+        prerelease: false
