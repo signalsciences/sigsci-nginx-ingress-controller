@@ -2,7 +2,7 @@ name: Manual - Produce Docker Image, GH Release & update sigsci-values.yaml
 
 on:
   push:
-    branch:
+    branches:
       - main
 
 jobs:
