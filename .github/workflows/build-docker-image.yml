@@ -7,16 +7,12 @@ on:
 jobs:
   # Manual workflow to backfill any failed/missed builds
   # Update variable: TAG:
-  # Update the variale TAG below as well as line #5 in values-sigsci.yaml file
-  # This action will build and push the tagged in imaged to docker hub, build and push Github Tag
   compare_versions:
     runs-on: ubuntu-latest
     env:
       TAG: "0.49.2"
     steps:
     - uses: actions/checkout@v2
-    - name: compare versions
-      id: tag
     - name: Build and push Docker image
       env:
         REPO: signalsciences/sigsci-nginx-ingress-controller
