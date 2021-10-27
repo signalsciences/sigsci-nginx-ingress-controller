@@ -10,7 +10,7 @@ jobs:
   # Manual workflow to backfill any failed/missed builds
   # Update the variale TAG below as well as line #5 in values-sigsci.yaml file
   # This action will build and push the tagged in imaged to docker hub, build and push Github Tag
-  compare_versions:
+  build_push_release:
     runs-on: ubuntu-latest
     env:
       TAG: ${{ github.event.inputs.tag }}
