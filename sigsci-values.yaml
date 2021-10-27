@@ -3,6 +3,7 @@ controller:
     image:
       repository: signalsciences/sigsci-nginx-ingress-controller
       tag: "1.0.0-beta.1"
+      digest: false
       pullPolicy: IfNotPresent
 
     # Load module and set sigsci_agent_host
