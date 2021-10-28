@@ -1,10 +1,9 @@
-name: Manual - Produce Docker Image, GH Release & update sigsci-values.yaml
+name: Manual - Produce Docker Image, GH Release
 
 on:
-  workflow_dispatch:
-    inputs:
-      tag:
-        description: 'Upstream tag of Nginx-ingress-controller to build for'  
+  push:
+    branch:
+      - controller-1.0.1 
 
 jobs:
   # Manual workflow to backfill any failed/missed builds
@@ -13,7 +12,7 @@ jobs:
   build_push_release:
     runs-on: ubuntu-latest
     env:
-      TAG: ${{ github.event.inputs.tag }}
+      TAG: "1.0.1"
     steps:
     - uses: actions/checkout@v2
     - name: Build and push Docker image
