@@ -1,0 +1,37 @@
+name: Manual - Produce Docker Image, GH Release & update sigsci-values.yaml
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Upstream tag of Nginx-ingress-controller to build for'  
+
+jobs:
+  # Manual workflow to backfill any failed/missed builds
+  # Update the variale TAG below as well as line #5 in values-sigsci.yaml file
+  # This action will build and push the tagged in imaged to docker hub, build and push Github Tag
+  build_push_release:
+    runs-on: ubuntu-latest
+    env:
+      TAG: ${{ github.event.inputs.tag }}
+    steps:
+    - uses: actions/checkout@v2
+    - name: Build and push Docker image
+      env:
+        REPO: signalsciences/sigsci-nginx-ingress-controller
+      run: |
+          docker build . --file Dockerfile --build-arg NGINX_INGRESS_VERSION=v${TAG} --tag ${REPO}:${TAG}
+          echo ${{ secrets.DOCKER_PASSWORD }} | docker login -u ${{ secrets.DOCKER_USERNAME }} --password-stdin
+          docker push ${REPO}:${TAG}
+    
+    - name: Create Github Release
+      uses: actions/create-release@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        tag_name: ${{ env.TAG }}
+        release_name: Match release ${{ env.TAG }}
+        body: |
+         Match release kubernetes/ingress-nginx v${{ env.TAG }} 
+        draft: false
+        prerelease: false
