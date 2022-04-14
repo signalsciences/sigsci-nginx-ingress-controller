@@ -3,7 +3,7 @@ name: Manual - Produce Docker Image, GH Release
 on:
   push:
     branch:
-      - controller-1.0.3
+      - controller-0.51.0
 
 jobs:
   # Manual workflow to backfill any failed/missed builds
@@ -12,7 +12,7 @@ jobs:
   build_push_release:
     runs-on: ubuntu-latest
     env:
-      TAG: "1.0.3"
+      TAG: "0.51.0"
     steps:
       - uses: actions/checkout@v2
       - name: Login to Docker Hub
