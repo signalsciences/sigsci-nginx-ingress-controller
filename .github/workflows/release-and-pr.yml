@@ -4,6 +4,9 @@ on:
   workflow_dispatch:
   schedule:
     - cron: '0 13 * * 1-5' # M-F at 6 AM PDT
+  push:
+    branch:
+      - bbucher-FBS-598-add-manual
 
 jobs:
   # Compare kubernetes/ingress-nginx version with sigsci-nginx-ingress-controller version
@@ -63,6 +66,7 @@ jobs:
         git config --local user.email "github-actions[bot]@users.noreply.github.com"
         git config --local user.name "github-actions[bot]"
         git checkout -b match-version-release
+        git pull
         sed -i "s/tag:.*/tag: \"${{ env.NEW_TAG }}\"/g" sigsci-values.yaml
         git commit -am "Automated PR - Match upstream version" && git push -u origin match-version-release
 
