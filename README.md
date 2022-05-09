@@ -7,6 +7,7 @@ Tags/Releases track image tags of the upstream docker repo.
 These images work as drop-in replacements for:
 * `k8s.gcr.io/ingress-nginx/controller` images with corresponding tags (0.43.0)
 * `quay.io/kubernetes-ingress-controller/nginx-ingress-controller` images with corresponding tags (0.25.0-0.33.0)
+* `nginx/nginx-ingress` images with corresponding tags (>= 2.2.0)
 
 ## Helm install instructions with override file
 
