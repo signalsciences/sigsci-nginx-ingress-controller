@@ -2,7 +2,7 @@ controller:
 
   image:
     ## Replaces the default nginx-controller image with a custom image that contains the Signal Sciences nginx Module
-    repository: signalsciences/sigsci-nginxinc-nginx-ingress-controller
+    repository: signalsciences/sigsci-nginxinc-ingress-controller
     tag: "2.2.0"
     pullPolicy: IfNotPresent
 
