@@ -3,17 +3,18 @@ name: Produce Docker Image, GH Release & Create PR for Override File
 on:
   workflow_dispatch:
   schedule:
-    - cron: '0 13 * * 1-5' # M-F at 6 AM PDT
+    - cron: '0 15 * * 1-5' # M-F at 8 AM PDT
 
 jobs:
-  # Compare kubernetes/ingress-nginx version with sigsci-nginx-ingress-controller version
+  # Compare nginxinc/kubernetes-ingress version with sigsci-nginx-ingress-controller version
   # If new version build and push container to docker hub
   # Create and tag new release
-  # Update sigsci-value.yaml file & create PR
+  # Update sigsci-nginxinc-value.yaml file & create PR
   compare_versions:
     runs-on: ubuntu-latest
     env:
       GH_REPO: https://api.github.com/repos/signalsciences/sigsci-nginx-ingress-controller
+      VALUES_FILE: sigsci-nginxinc-values.yaml
     outputs:
       value: ${{ steps.tag.outputs.NO_CHANGE }}
     steps:
@@ -26,19 +27,19 @@ jobs:
     - name: compare versions
       id: tag
       env:
-        REPO: signalsciences/sigsci-nginx-ingress-controller
+        REPO: signalsciences/sigsci-nginxinc-nginx-ingress-controller
       run: |
-        INGRESS_LATEST=$(curl -sL https://api.github.com/repos/kubernetes/ingress-nginx/releases | grep "tag_name" | grep -m1 "controller" | cut -d '"' -f4 | cut -d 'v' -f2)
+        NGINXINC_INGRESS_LATEST="$(curl -sL https://api.github.com/repos/nginxinc/kubernetes-ingress/releases | grep "tag_name" -m1 | cut -d '"' -f4 | cut -d 'v' -f2)"
         SIGSCI_LATEST=$(curl -sL ${{ env.GH_REPO }}/releases | grep "tag_name" | grep -m1 "tag_name" | cut -d '"' -f4)
 
         version() { echo "$@" | awk -F. '{ printf("%d%03d%03d\n", $1,$2,$3); }'; }
 
-        if [ $(version $INGRESS_LATEST) -eq $(version $SIGSCI_LATEST) ]; then
-          echo "ingress-nginx version: $INGRESS_LATEST -- matches sigsci version: $SIGSCI_LATEST"
+        if [ $(version $NGINXINC_INGRESS_LATEST) -eq $(version $SIGSCI_LATEST) ]; then
+          echo "ingress-nginx version: $NGINXINC_INGRESS_LATEST -- matches sigsci version: $SIGSCI_LATEST"
           echo "::set-output name=NO_CHANGE::true"
         else
-          TAG=$INGRESS_LATEST
-          docker build . --file Dockerfile --build-arg NGINX_INGRESS_VERSION=v${TAG} --tag ${REPO}:${TAG}
+          TAG=$NGINXINC_INGRESS_LATEST
+          docker build . --file Dockerfile.nginxinc --build-arg NGINX_INGRESS_VERSION=${TAG} --tag ${REPO}:${TAG}
           docker push ${REPO}:${TAG}
           echo NEW_TAG=$TAG >> $GITHUB_ENV
           echo "::set-output name=NO_CHANGE::false"
@@ -53,17 +54,17 @@ jobs:
         tag_name: ${{ env.NEW_TAG }}
         release_name: Match release ${{ env.NEW_TAG }}
         body: |
-         Match release kubernetes/ingress-nginx v${{ env.NEW_TAG }} 
+         Match release nginxinc/kubernetes-ingress v${{ env.NEW_TAG }}
         draft: false
         prerelease: false
 
-    - name: Update sigsci-values.yaml & create PR
+    - name: Update ${{ env.VALUES_FILE }} & create PR
       if: ${{ steps.tag.outputs.NO_CHANGE == 'false' }}
       run: |
         git config --local user.email "github-actions[bot]@users.noreply.github.com"
         git config --local user.name "github-actions[bot]"
         git checkout -b match-version-release
-        sed -i "s/tag:.*/tag: \"${{ env.NEW_TAG }}\"/g" sigsci-values.yaml
+        sed -i "s/tag:.*/tag: \"${{ env.NEW_TAG }}\"/g" ${{ env.VALUES_FILE }}
         git commit -am "Automated PR - Match upstream version" && git push -u origin match-version-release
 
         curl -X POST -u ${{ github.actor }}:${{ secrets.GITHUB_TOKEN }} \
@@ -85,4 +86,4 @@ jobs:
         -H "Accept: application/vnd.github.v3+json" \
         -u ${{ github.actor }}:${{ secrets.GITHUB_TOKEN }} \
         ${{ env.GH_REPO }}/pulls/${{ env.PR_NUM }}/requested_reviewers \
-        --data '{"reviewers":["lsmith-fastly","bbucher-sigsci","leaf-fastly","rell-fastly","andy-fastly"]}'
+        --data '{"reviewers":["bbucher-sigsci","leaf-fastly","rell-fastly","andy-fastly"]}'

@@ -1,5 +1,5 @@
 ARG NGINX_INGRESS_VERSION=${NGINX_INGRESS_VERSION:-2.2.0-alpine}
-FROM ghcr.io/nginxinc/kubernetes-ingress:${NGINX_INGRESS_VERSION}
+FROM nginx/nginx-ingress:${NGINX_INGRESS_VERSION}
 ARG PKGNAME=${PKGNAME:-nginx-module-sigsci-nxo}
 
 # Change to the root user to update the container
