@@ -1,4 +1,4 @@
-name: Produce Docker Image, GH Release & Create PR for Override File
+name: Produce Docker Image with nginxinc upstream support, GH Release & Create PR for Override File
 
 on:
   workflow_dispatch:
