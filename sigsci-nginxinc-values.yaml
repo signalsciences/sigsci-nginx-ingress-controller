@@ -1,0 +1,38 @@
+controller:
+
+  image:
+    ## Replaces the default nginx-controller image with a custom image that contains the Signal Sciences nginx Module
+    repository: signalsciences/sigsci-nginxinc-ingress-controller
+    tag: "2.2.0"
+    pullPolicy: IfNotPresent
+
+  # Load module and set sigsci_agent_host
+  config:
+    entries:
+      main-snippets: load_module /usr/lib/nginx/modules/ngx_http_sigsci_module.so;
+      http-snippets: sigsci_agent_host unix:/sigsci/tmp/sigsci.sock;
+
+  ## The volumes of the Ingress Controller pods.
+  volumes:
+    - name: sigsci-temp
+
+  # Mounts shared volume for sigsci.sock file
+  volumeMounts:
+    - name: sigsci-temp
+      mountPath: /sigsci/tmp
+
+  # Loads sidecar Signal Sciences Agent
+  extraContainers:
+    - name: sigsci-agent
+      image: signalsciences/sigsci-agent:latest
+      volumeMounts:
+        - name: sigsci-temp
+          mountPath: /sigsci/tmp
+      # Sets Signal Sciences Agent keys and SigSci RPC address
+      env:
+        - name: SIGSCI_RPC_ADDRESS
+          value: unix:/sigsci/tmp/sigsci.sock
+        - name: SIGSCI_ACCESSKEYID
+          value: SET_ME
+        - name: SIGSCI_SECRETACCESSKEY
+          value: SET_ME
