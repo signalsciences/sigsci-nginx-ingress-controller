@@ -2,9 +2,6 @@ name: Manual Push Docker Hub Image
 
 on:
   workflow_dispatch:
-  push:
-    branches:
-      -bbucher-AGENT400-arm64_support
 
 jobs:
   deploy:
@@ -22,4 +19,4 @@ jobs:
           REPO: signalsciences/sigsci-nginx-ingress-controller
         run: |
           docker buildx create --name build_multiarch --use
-          docker buildx build --platform linux/amd64,linux/arm64 --build-arg  NGINX_INGRESS_VERSION=v1.3.1 --tag ${REPO}:${TAG} --load .
+          docker buildx build --platform linux/amd64,linux/arm64 --build-arg  NGINX_INGRESS_VERSION=v1.3.1 --tag ${REPO}:${TAG} --push .
