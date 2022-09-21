@@ -38,8 +38,8 @@ jobs:
           echo "::set-output name=NO_CHANGE::true"
         else
           TAG=$INGRESS_LATEST
-          docker build . --file Dockerfile --build-arg NGINX_INGRESS_VERSION=v${TAG} --tag ${REPO}:${TAG}
-          docker push ${REPO}:${TAG}
+          docker buildx create --name build_multiarch --use
+          docker buildx build --platform linux/amd64,linux/arm64 --build-arg  NGINX_INGRESS_VERSION=v${TAG} --tag ${REPO}:${TAG} --tag ${REPO}:latest --push .
           echo NEW_TAG=$TAG >> $GITHUB_ENV
           echo "::set-output name=NO_CHANGE::false"
         fi
