@@ -1,5 +1,7 @@
 ARG NGINX_INGRESS_VERSION=${NGINX_INGRESS_VERSION:-v0.47.0}
-FROM k8s.gcr.io/ingress-nginx/controller:${NGINX_INGRESS_VERSION}
+FROM --platform=$BUILDPLATFORM k8s.gcr.io/ingress-nginx/controller:${NGINX_INGRESS_VERSION}
+
+ARG BUILDPLATFORM
 ARG PKGNAME=${PKGNAME:-nginx-module-sigsci-nxo}
 
 # Change to the root user to update the container
@@ -9,7 +11,7 @@ USER root
 # NOTE: The nginx native module to be installed needs to be for
 #       the correct version of nginx installed; this applies
 #       to both nginx.org and openresty nginx distributions.
-RUN apk update && apk add --no-cache gnupg wget --virtual ./build_deps \
+RUN apk -U upgrade && apk add --no-cache gnupg wget curl --virtual ./build_deps \
     # Figure out which alpine release this is
     && ALPINE_RELEASE=$(cat /etc/alpine-release) \
     && ALPINE_RELEASE=${ALPINE_RELEASE::-2} \
