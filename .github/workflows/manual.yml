@@ -19,4 +19,4 @@ jobs:
           REPO: signalsciences/sigsci-nginx-ingress-controller
         run: |
           docker buildx create --name build_multiarch --use
-          docker buildx build --platform linux/amd64,linux/arm64 --build-arg  NGINX_INGRESS_VERSION=v1.3.1 --tag ${REPO}:${TAG} --tag ${REPO}:latest --push .
+          docker buildx build --platform linux/amd64,linux/arm64 --build-arg  NGINX_INGRESS_VERSION=v${TAG} --tag ${REPO}:${TAG} --tag ${REPO}:latest --push .
