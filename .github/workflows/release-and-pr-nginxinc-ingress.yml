@@ -2,8 +2,6 @@ name: Produce Docker Image with nginxinc upstream support, GH Release & Create P
 
 on:
   workflow_dispatch:
-  schedule:
-    - cron: '0 15 * * 1-5' # M-F at 8 AM PDT
 
 jobs:
   # Compare nginxinc/kubernetes-ingress version with sigsci-nginx-ingress-controller version
