@@ -1,37 +1,37 @@
 controller:
-    # Replaces the default nginx-controller image with a custom image that contains the Signal Sciences nginx Module
-    image:
-      repository: signalsciences/sigsci-nginx-ingress-controller
-      tag: "1.7.0"
-      pullPolicy: IfNotPresent
+  # Replaces the default nginx-controller image with a custom image that contains the Signal Sciences nginx Module
+  image:
+    repository: signalsciences/sigsci-nginx-ingress-controller
+    tag: "1.7.0"
+    pullPolicy: IfNotPresent
 
-    # Load module and set sigsci_agent_host
-    config:
-      main-snippet: load_module /usr/lib/nginx/modules/ngx_http_sigsci_module.so;
-      http-snippet: sigsci_agent_host unix:/sigsci/tmp/sigsci.sock;
+  # Load module and set sigsci_agent_host
+  config:
+    main-snippet: load_module /usr/lib/nginx/modules/ngx_http_sigsci_module.so;
+    http-snippet: sigsci_agent_host unix:/sigsci/tmp/sigsci.sock;
 
-    # Loads sidecar Signal Sciences Agent
-    extraContainers:
-      - name: sigsci-agent
-        image: signalsciences/sigsci-agent:latest
-        volumeMounts:
-        - name: sigsci-temp
-          mountPath: /sigsci/tmp
-
-        # Sets Signal Sciences Agent keys
-        env:
-        - name: SIGSCI_RPC_ADDRESS
-          value: unix:/sigsci/tmp/sigsci.sock
-        - name: SIGSCI_ACCESSKEYID
-          value: SET_ME
-        - name: SIGSCI_SECRETACCESSKEY
-          value: SET_ME
-
-    # Mounts shared volume for sigsci.sock file
-    extraVolumeMounts:
+  # Loads sidecar Signal Sciences Agent
+  extraContainers:
+    - name: sigsci-agent
+      image: signalsciences/sigsci-agent:latest
+      volumeMounts:
       - name: sigsci-temp
         mountPath: /sigsci/tmp
 
-    extraVolumes:
-      - name: sigsci-temp
-        emptyDir: {}
+      # Sets Signal Sciences Agent keys
+      env:
+      - name: SIGSCI_RPC_ADDRESS
+        value: unix:/sigsci/tmp/sigsci.sock
+      - name: SIGSCI_ACCESSKEYID
+        value: SET_ME
+      - name: SIGSCI_SECRETACCESSKEY
+        value: SET_ME
+
+  # Mounts shared volume for sigsci.sock file
+  extraVolumeMounts:
+    - name: sigsci-temp
+      mountPath: /sigsci/tmp
+
+  extraVolumes:
+    - name: sigsci-temp
+      emptyDir: {}
