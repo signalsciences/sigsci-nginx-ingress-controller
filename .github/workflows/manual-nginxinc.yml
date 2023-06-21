@@ -1,4 +1,4 @@
-name: Manual Push NginxInc Image to DockerHub
+name: Manual Push Docker Hub Image
 
 on:
   workflow_dispatch:
@@ -15,7 +15,8 @@ jobs:
           password: ${{ secrets.DOCKERHUB_API_TOKEN }}
       - name: Build and Push image to docker Hub
         env:
-          TAG: 2.3.0
+          TAG: 1.8.0
           REPO: signalsciences/sigsci-nginx-ingress-controller
         run: |
-          docker buildx build . --file Dockerfile.nginxinc --build-arg NGINX_INGRESS_VERSION=${TAG} --tag ${REPO}:${TAG} --tag ${REPO}:latest --push .
+          docker buildx create --name build_multiarch --use
+          docker buildx build --platform linux/amd64,linux/arm64 --build-arg  NGINX_INGRESS_VERSION=v${TAG} --tag ${REPO}:${TAG} --tag ${REPO}:latest --push .
