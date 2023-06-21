@@ -6,6 +6,8 @@ on:
 env:
   LATEST_TAG: signalsciences/sigsci-nginxinc-ingress-controller:latest
   VERSION_TAG: signalsciences/sigsci-nginxinc-ingress-controller:2.3.0
+  UPSTREAM_NGINX_INGRESS_VERSION: 2.3.0
+  DISTRIBUTION: alpine
 
 jobs:
   docker:
@@ -28,8 +30,8 @@ jobs:
         uses: docker/build-push-action@v4
         with:
           build-args: |
-            NGINX_INGRESS_VERSION=2.3.0
-            CONTAINER_BASE=alpine
+            NGINX_INGRESS_VERSION=${{ env.UPSTREAM_NGINX_INGRESS_VERSION }}
+            CONTAINER_BASE=${{ env.DISTRIBUTION }}
           context: .
           file: Dockerbuild.nginxinc
           push: true
