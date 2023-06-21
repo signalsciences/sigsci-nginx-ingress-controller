@@ -18,4 +18,4 @@ jobs:
           TAG: 2.3.0
           REPO: signalsciences/sigsci-nginx-ingress-controller
         run: |
-          docker buildx . --file Dockerfile.nginxinc --build-arg NGINX_INGRESS_VERSION=${TAG} --tag ${REPO}:${TAG} --tag ${REPO}:latest --push .
+          docker buildx build . --file Dockerfile.nginxinc --build-arg NGINX_INGRESS_VERSION=${TAG} --tag ${REPO}:${TAG} --tag ${REPO}:latest --push .
