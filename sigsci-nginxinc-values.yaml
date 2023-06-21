@@ -3,7 +3,7 @@ controller:
   image:
     ## Replaces the default nginx-controller image with a custom image that contains the Signal Sciences nginx Module
     repository: signalsciences/sigsci-nginxinc-ingress-controller
-    tag: "2.2.0"
+    tag: "2.3.0"
     pullPolicy: IfNotPresent
 
   # Load module and set sigsci_agent_host
