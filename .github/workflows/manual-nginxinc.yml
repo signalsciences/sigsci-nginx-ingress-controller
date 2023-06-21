@@ -16,7 +16,6 @@ jobs:
       - name: Build and Push image to docker Hub
         env:
           TAG: 2.3.0
-          REPO: signalsciences/sigsci-nginxinc-ingress-controller
+          REPO: signalsciences/sigsci-nginx-ingress-controller
         run: |
-          docker buildx create --name build_multiarch --use
-          docker buildx build --platform linux/amd64,linux/arm64 --build-arg  NGINX_INGRESS_VERSION=v${TAG} --tag ${REPO}:${TAG} --tag ${REPO}:latest --push .
+          docker buildx build . --file Dockerfile.nginxinc --build-arg NGINX_INGRESS_VERSION=${TAG} --tag ${REPO}:${TAG} --tag ${REPO}:latest --push .
