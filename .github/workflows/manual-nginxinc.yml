@@ -36,7 +36,7 @@ jobs:
           build-args: |
             NGINX_INGRESS_VERSION=${{ env.UPSTREAM_NGINX_INGRESS_VERSION }}
             CONTAINER_BASE=${{ env.DISTRIBUTION }}
-          push: true
+          push: ${{ !env.ACT }}
           tags: >-
             ${{ env.DOCKERHUB_IMAGE }}:${{ env.UPSTREAM_NGINX_INGRESS_VERSION }},${{ env.DOCKERHUB_IMAGE}}:latest,
 
