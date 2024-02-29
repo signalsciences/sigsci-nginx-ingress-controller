@@ -35,7 +35,6 @@ jobs:
 
         # Assign INGRESS_LATEST to highest semantic version retrieved.
         INGRESS_LATEST=$(echo $INGRESS_VERSIONS | head -n1)
-        echo "INGRESS_LATEST=$INGRESS_LATEST" >> $GITHUB_ENV
         echo "upstream semantic versions: ${INGRESS_VERSIONS[@]}"
         echo "latest upstream semantic version: $INGRESS_LATEST"
         echo ""
@@ -68,13 +67,8 @@ jobs:
             docker buildx create --name build_multiarch --use
             docker buildx build --platform linux/amd64,linux/arm64 --build-arg  NGINX_INGRESS_VERSION=v${TAG} --tag ${REPO}:${TAG} --tag ${REPO}:latest --push .
           done
-          # Change IFS and store NEW_TAGS using comma delim, restore back.
-          PREV_IFS="$IFS"
-          IFS=','
-          # Join the array elements
-          NEW_TAGS="${UPSTREAM_INGRESS_NOT_IN_SIGSCI[*]}"
-          IFS="$PREV_IFS"
-          echo "NEW_TAGS=$NEW_TAGS" >> $GITHUB_ENV
+          TAG=$INGRESS_LATEST
+          echo "NEW_TAG=$INGRESS_LATEST" >> $GITHUB_ENV
           echo "::set-output name=NO_CHANGE::false"
         fi
     
@@ -84,10 +78,10 @@ jobs:
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       with:
-        tag_name: ${{ env.INGRESS_LATEST }}
-        release_name: Match release ${{ env.INGRESS_LATEST }}
+        tag_name: ${{ env.NEW_TAG }}
+        release_name: Match release ${{ env.NEW_TAG }}
         body: |
-         Match release kubernetes/ingress-nginx v${{ env.INGRESS_LATEST }} 
+         Match release kubernetes/ingress-nginx v${{ env.NEW_TAG }} 
         draft: false
         prerelease: false
 
@@ -97,11 +91,11 @@ jobs:
         git config --local user.email "github-actions[bot]@users.noreply.github.com"
         git config --local user.name "github-actions[bot]"
         git checkout -b match-version-release
-        sed -i "s/tag:.*/tag: \"${{ env.INGRESS_LATEST }}\"/g" sigsci-values.yaml
+        sed -i "s/tag:.*/tag: \"${{ env.NEW_TAG }}\"/g" sigsci-values.yaml
         git commit -am "Automated PR - Match upstream version" && git push -u origin match-version-release
 
         curl -X POST -u ${{ github.actor }}:${{ secrets.GITHUB_TOKEN }} \
-        ${{ env.GH_REPO }}/pulls --data '{"head":"match-version-release","base":"main","body":"Automated PR","title":"Match Version ${{ env.INGRESS_LATEST }}"}'
+        ${{ env.GH_REPO }}/pulls --data '{"head":"match-version-release","base":"main","body":"Automated PR","title":"Match Version ${{ env.NEW_TAG }}"}'
 
     - name: Pull latest PR Num
       if: ${{ steps.tag.outputs.NO_CHANGE == 'false' }}
