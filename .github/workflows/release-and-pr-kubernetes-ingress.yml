@@ -30,6 +30,7 @@ jobs:
       run: |
         INGRESS_LATEST=$(curl -sL https://api.github.com/repos/kubernetes/ingress-nginx/releases | grep "tag_name" | grep -m1 "controller" | cut -d '"' -f4 | cut -d 'v' -f2)
         SIGSCI_LATEST=$(curl -sL ${{ env.GH_REPO }}/releases | grep "tag_name" | grep -m1 "tag_name" | cut -d '"' -f4)
+        INGRESS_SUPPORTED_VERSIONS=$(curl -sL https://github.com/kubernetes/ingress-nginx | grep '<td align="center">🔄</td>' -A1 | grep -oP '\d+\.\d+\.\d+')
 
         version() { echo "$@" | awk -F. '{ printf("%d%03d%03d\n", $1,$2,$3); }'; }
 
