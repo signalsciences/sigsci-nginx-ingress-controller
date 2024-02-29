@@ -78,20 +78,18 @@ jobs:
           echo "::set-output name=NO_CHANGE::false"
         fi
     
-    - name: Create Releases for New Versions
+    - name: Create Release
       if: ${{ steps.tag.outputs.NO_CHANGE == 'false' }}
-      run: |
-        IFS=',' read -r -a release_tags <<< "${{ env.NEW_TAGS }}"
-        for TAG in "${release_tags[@]}"; do
-          POST_DATA=$(jq -n \
-                      --arg tag "v$TAG" \
-                      --arg name "Match release v$TAG" \
-                      --arg body "Match release kubernetes/ingress-nginx v$TAG" \
-                      '{tag_name: $tag, name: $name, body: $body, draft: false, prerelease: false}')
-          curl -X POST -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
-               -d "$POST_DATA" \
-               https://api.github.com/repos/${{ github.repository }}/releases
-        done
+      uses: actions/create-release@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        tag_name: ${{ env.INGRESS_LATEST }}
+        release_name: Match release ${{ env.INGRESS_LATEST }}
+        body: |
+         Match release kubernetes/ingress-nginx v${{ env.INGRESS_LATEST }} 
+        draft: false
+        prerelease: false
 
     - name: Update sigsci-values.yaml & create PR
       if: ${{ steps.tag.outputs.NO_CHANGE == 'false' }}
