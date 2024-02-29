@@ -67,7 +67,6 @@ jobs:
             docker buildx create --name build_multiarch --use
             docker buildx build --platform linux/amd64,linux/arm64 --build-arg  NGINX_INGRESS_VERSION=v${TAG} --tag ${REPO}:${TAG} --tag ${REPO}:latest --push .
           done
-          TAG=$INGRESS_LATEST
           echo "NEW_TAG=$INGRESS_LATEST" >> $GITHUB_ENV
           echo "::set-output name=NO_CHANGE::false"
         fi
