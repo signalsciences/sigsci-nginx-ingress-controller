@@ -28,35 +28,70 @@ jobs:
       env:
         REPO: signalsciences/sigsci-nginx-ingress-controller
       run: |
-        INGRESS_LATEST=$(curl -sL https://api.github.com/repos/kubernetes/ingress-nginx/releases | grep "tag_name" | grep -m1 "controller" | cut -d '"' -f4 | cut -d 'v' -f2)
-        SIGSCI_LATEST=$(curl -sL ${{ env.GH_REPO }}/releases | grep "tag_name" | grep -m1 "tag_name" | cut -d '"' -f4)
-        INGRESS_SUPPORTED_VERSIONS=$(curl -sL https://github.com/kubernetes/ingress-nginx | grep '<td align="center">🔄</td>' -A1 | grep -oP '\d+\.\d+\.\d+')
+        # Create an array of upstream ingress versions
+        mapfile -t INGRESS_VERSIONS < <(curl -sL https://api.github.com/repos/kubernetes/ingress-nginx/releases | \
+        jq -r '.[] | select(.tag_name | startswith("controller-v")) | .tag_name' | \
+        sort -Vr | cut -d 'v' -f2 | grep -v "beta" )
 
-        version() { echo "$@" | awk -F. '{ printf("%d%03d%03d\n", $1,$2,$3); }'; }
+        # Assign INGRESS_LATEST to highest semantic version retrieved.
+        INGRESS_LATEST=$(echo $INGRESS_VERSIONS | head -n1)
+        echo "INGRESS_LATEST=$INGRESS_LATEST" >> $GITHUB_ENV
+        echo "upstream semantic versions: ${INGRESS_VERSIONS[@]}"
+        echo "latest upstream semantic version: $INGRESS_LATEST"
+        echo ""
 
-        if [ $(version $INGRESS_LATEST) -eq $(version $SIGSCI_LATEST) ]; then
+        # Grab the sigsci versions.
+        mapfile -t SIGSCI_VERSIONS < <(curl -sL ${{ env.GH_REPO }}/releases | \
+        jq -r '.[].tag_name' | sort -Vr  | grep -v "beta" )
+
+        SIGSCI_LATEST=$(echo $SIGSCI_VERSIONS | head -n1 )
+        echo "sigsci versions: ${SIGSCI_VERSIONS[@]}"
+        echo "latest sigsci version: $SIGSCI_LATEST"
+        echo ""
+
+        # Create array of Upstream releases not in sigsci
+        UPSTREAM_INGRESS_NOT_IN_SIGSCI=()
+        for ingress_version in "${INGRESS_VERSIONS[@]}"; do
+            if ! printf '%s\n' "${SIGSCI_VERSIONS[@]}" | grep -q "^$ingress_version$"; then
+                UPSTREAM_INGRESS_NOT_IN_SIGSCI+=("$ingress_version")
+            fi
+        done
+
+        # If the array len is 0 then no changes, otherwise, build and push.
+        if [ "${#UPSTREAM_INGRESS_NOT_IN_SIGSCI[@]}" -eq 0 ]; then
           echo "ingress-nginx version: $INGRESS_LATEST -- matches sigsci version: $SIGSCI_LATEST"
           echo "::set-output name=NO_CHANGE::true"
-        else
-          TAG=$INGRESS_LATEST
-          docker buildx create --name build_multiarch --use
-          docker buildx build --platform linux/amd64,linux/arm64 --build-arg  NGINX_INGRESS_VERSION=v${TAG} --tag ${REPO}:${TAG} --tag ${REPO}:latest --push .
-          echo NEW_TAG=$TAG >> $GITHUB_ENV
+        else 
+          echo "Versions in upstream not found in sigsci_versions: ${UPSTREAM_INGRESS_NOT_IN_SIGSCI[@]}"
+          for version in "${UPSTREAM_INGRESS_NOT_IN_SIGSCI[@]}"; do
+            TAG=$version
+            docker buildx create --name build_multiarch --use
+            docker buildx build --platform linux/amd64,linux/arm64 --build-arg  NGINX_INGRESS_VERSION=v${TAG} --tag ${REPO}:${TAG} --tag ${REPO}:latest --push .
+          done
+          # Change IFS and store NEW_TAGS using comma delim, restore back.
+          PREV_IFS="$IFS"
+          IFS=','
+          # Join the array elements
+          NEW_TAGS="${UPSTREAM_INGRESS_NOT_IN_SIGSCI[*]}"
+          IFS="$PREV_IFS"
+          echo "NEW_TAGS=$NEW_TAGS" >> $GITHUB_ENV
           echo "::set-output name=NO_CHANGE::false"
         fi
     
-    - name: Create Release
+    - name: Create Releases for New Versions
       if: ${{ steps.tag.outputs.NO_CHANGE == 'false' }}
-      uses: actions/create-release@v1
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      with:
-        tag_name: ${{ env.NEW_TAG }}
-        release_name: Match release ${{ env.NEW_TAG }}
-        body: |
-         Match release kubernetes/ingress-nginx v${{ env.NEW_TAG }} 
-        draft: false
-        prerelease: false
+      run: |
+        IFS=',' read -r -a release_tags <<< "${{ env.NEW_TAGS }}"
+        for TAG in "${release_tags[@]}"; do
+          POST_DATA=$(jq -n \
+                      --arg tag "v$TAG" \
+                      --arg name "Match release v$TAG" \
+                      --arg body "Match release kubernetes/ingress-nginx v$TAG" \
+                      '{tag_name: $tag, name: $name, body: $body, draft: false, prerelease: false}')
+          curl -X POST -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+               -d "$POST_DATA" \
+               https://api.github.com/repos/${{ github.repository }}/releases
+        done
 
     - name: Update sigsci-values.yaml & create PR
       if: ${{ steps.tag.outputs.NO_CHANGE == 'false' }}
@@ -64,11 +99,11 @@ jobs:
         git config --local user.email "github-actions[bot]@users.noreply.github.com"
         git config --local user.name "github-actions[bot]"
         git checkout -b match-version-release
-        sed -i "s/tag:.*/tag: \"${{ env.NEW_TAG }}\"/g" sigsci-values.yaml
+        sed -i "s/tag:.*/tag: \"${{ env.INGRESS_LATEST }}\"/g" sigsci-values.yaml
         git commit -am "Automated PR - Match upstream version" && git push -u origin match-version-release
 
         curl -X POST -u ${{ github.actor }}:${{ secrets.GITHUB_TOKEN }} \
-        ${{ env.GH_REPO }}/pulls --data '{"head":"match-version-release","base":"main","body":"Automated PR","title":"Match Version ${{ env.NEW_TAG}}"}'
+        ${{ env.GH_REPO }}/pulls --data '{"head":"match-version-release","base":"main","body":"Automated PR","title":"Match Version ${{ env.INGRESS_LATEST }}"}'
 
     - name: Pull latest PR Num
       if: ${{ steps.tag.outputs.NO_CHANGE == 'false' }}
