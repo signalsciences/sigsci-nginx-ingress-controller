@@ -5,15 +5,12 @@ Prebuilt images hosted here: https://hub.docker.com/repository/docker/signalscie
 
 Tags/Releases track image tags of the upstream docker repo.
 These images work as drop-in replacements for:
-* `k8s.gcr.io/ingress-nginx/controller` images with corresponding tags (0.43.0)
-* `quay.io/kubernetes-ingress-controller/nginx-ingress-controller` images with corresponding tags (0.25.0-0.33.0)
+* `registry.k8s.io/ingress-nginx/controller` images with corresponding tags
 
+***NGINX, Inc.***
 Use `Dockerfile.nginxinc` if you want to add the Signal Sciences NGINX module into the stock nginxinc/kubernetes-ingress image (https://github.com/nginxinc/kubernetes-ingress)
 
 Prebuilt images are hosted here: https://hub.docker.com/repository/docker/signalsciences/sigsci-nginxinc-ingress-controller
-
-Tags/Releases are also used to track the tags of the upstream repo:
-* `nginx/nginx-ingress` images with corresponding tags (>= 2.2.0)
 
 ## Helm install instructions with override file
 
@@ -111,7 +108,7 @@ controller:
     # Replaces the default nginx-controller image with a custom image that contains the Signal Sciences nginx Module
     image:
       repository: signalsciences/sigsci-nginx-ingress-controller
-      tag: "0.47.0"
+      tag: "1.10.0"
       pullPolicy: IfNotPresent
 ```
 
