@@ -2,6 +2,19 @@ name: Manual Push Docker Hub Image
 
 on:
   workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Tag for the Docker image'
+        required: true
+        default: '1.10.1'
+      latest:
+        description: 'Build Latest aswell'
+        required: true
+        default: 'false'
+      repo:
+        description: 'Docker Hub Repo'
+        required: true
+        default: 'signalsciences/sigsci-nginx-ingress-controller'
 
 jobs:
   deploy:
@@ -13,10 +26,15 @@ jobs:
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_API_TOKEN }}
-      - name: Build and Push image to docker Hub
+      - name: Build and Push image to Docker Hub
         env:
-          TAG: 1.8.0
-          REPO: signalsciences/sigsci-nginx-ingress-controller
+          TAG: ${{ github.event.inputs.tag }}
+          REPO: ${{ github.event.inputs.repo }}
+          LATEST: ${{ github.event.inputs.repo }}
         run: |
           docker buildx create --name build_multiarch --use
-          docker buildx build --platform linux/amd64,linux/arm64 --build-arg  NGINX_INGRESS_VERSION=v${TAG} --tag ${REPO}:${TAG} --tag ${REPO}:latest --push .
+          if [ "${LATEST}" == "true" ]; then
+            docker buildx build --platform linux/amd64,linux/arm64 --build-arg NGINX_INGRESS_VERSION=v${TAG} --tag ${REPO}:${TAG} --tag ${REPO}:latest --push .
+          else
+            docker buildx build --platform linux/amd64,linux/arm64 --build-arg NGINX_INGRESS_VERSION=v${TAG} --tag ${REPO}:${TAG} --push .
+          fi
