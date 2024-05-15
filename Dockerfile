@@ -1,7 +1,6 @@
 ARG NGINX_INGRESS_VERSION=${NGINX_INGRESS_VERSION:-v1.10.0}
-FROM --platform=$BUILDPLATFORM registry.k8s.io/ingress-nginx/controller:${NGINX_INGRESS_VERSION}
+FROM registry.k8s.io/ingress-nginx/controller:${NGINX_INGRESS_VERSION}
 
-ARG BUILDPLATFORM
 ARG PKGNAME=${PKGNAME:-nginx-module-sigsci-nxo}
 
 # Change to the root user to update the container
