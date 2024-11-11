@@ -83,4 +83,4 @@ jobs:
         -H "Accept: application/vnd.github.v3+json" \
         -u ${{ github.actor }}:${{ secrets.GITHUB_TOKEN }} \
         ${{ env.GH_REPO }}/pulls/${{ env.PR_NUM }}/requested_reviewers \
-        --data '{"reviewers":["bbucher-sigsci","leaf-fastly","rell-fastly"]}'
+        --data '{"reviewers":["bbucher-sigsci","paul-fastly","amacnair","vcarvajal-sigsci","nathan-sigsci","sada-sigsci"]}'
