@@ -15,7 +15,7 @@ jobs:
           password: ${{ secrets.DOCKERHUB_API_TOKEN }}
       - name: Build and Push image to docker Hub
         env:
-          TAG: 1.12.1
+          TAG: 1.11.6
           REPO: signalsciences/sigsci-nginx-ingress-controller
         run: |
           docker buildx create --name build_multiarch --use
