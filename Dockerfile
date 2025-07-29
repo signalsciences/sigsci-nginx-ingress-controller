@@ -12,8 +12,8 @@ USER root
 #       to both nginx.org and openresty nginx distributions.
 RUN apk -U upgrade && apk add --no-cache gnupg wget curl --virtual ./build_deps \
     # Figure out which alpine release this is
-    && ALPINE_RELEASE=$(cat /etc/alpine-release) \
-    && ALPINE_RELEASE=${ALPINE_RELEASE::-2} \
+    # && ALPINE_RELEASE=$(cat /etc/alpine-release) \
+    && ALPINE_RELEASE=3.19 \
     # Figure out which nginx is installed in the container
     && NGXVERSION=$(nginx -v 2>&1 | sed 's%^[^/]*/\([0-9]*\.[0-9]*\.[0-9]*\).*%\1%') \
     # Get the latest version of the sigsci nginx native module
