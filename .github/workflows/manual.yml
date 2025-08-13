@@ -15,10 +15,10 @@ jobs:
           password: ${{ secrets.DOCKERHUB_API_TOKEN }}
       - name: Build and Push image to docker Hub
         env:
-          NGINX_TAG: 1.12.5
+          NGINX_TAG: 1.13.1
           MODULE_TAG: 1.3.3
           REPO: signalsciences/sigsci-nginx-ingress-controller
         run: |
           docker buildx create --name build_multiarch --use
-          docker buildx build --platform linux/amd64,linux/arm64 --build-arg  NGINX_INGRESS_VERSION=v${NGINX_TAG} --tag ${REPO}:${NGINX_TAG}-fastly${MODULE_TAG} --push .
-          # docker buildx build --platform linux/amd64,linux/arm64 --build-arg  NGINX_INGRESS_VERSION=v${NGINX_TAG} --tag ${REPO}:${NGINX_TAG}-fastly${MODULE_TAG} --tag ${REPO}:latest --push .
+          # docker buildx build --platform linux/amd64,linux/arm64 --build-arg  NGINX_INGRESS_VERSION=v${NGINX_TAG} --tag ${REPO}:${NGINX_TAG}-fastly${MODULE_TAG} --push .
+          docker buildx build --platform linux/amd64,linux/arm64 --build-arg  NGINX_INGRESS_VERSION=v${NGINX_TAG} --tag ${REPO}:${NGINX_TAG}-fastly${MODULE_TAG} --tag ${REPO}:latest --push .
