@@ -2,8 +2,8 @@ name: Produce Docker Image, GH Release & Create PR for Override File
 
 on:
   workflow_dispatch:
-  schedule:
-    - cron: '0 13 * * 1-5' # M-F at 6 AM PDT
+  # schedule:
+  #   - cron: '0 13 * * 1-5' # M-F at 6 AM PDT
 
 jobs:
   # Compare kubernetes/ingress-nginx version with sigsci-nginx-ingress-controller version
