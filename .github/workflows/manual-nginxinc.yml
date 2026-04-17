@@ -6,7 +6,7 @@ on:
 env:
   DOCKERHUB_IMAGE: signalsciences/sigsci-nginxinc-ingress-controller
   DISTRIBUTION: alpine
-  UPSTREAM_NGINX_INGRESS_VERSION: 5.3.4
+  UPSTREAM_NGINX_INGRESS_VERSION: 5.4.0
 
 jobs:
   buildpush_to_dockerhub:
