@@ -1,0 +1,58 @@
+name: Manual Push Docker Hub Image (Chainguard Fork)
+
+on:
+  workflow_dispatch:
+    inputs:
+      nginx_tag:
+        description: 'NGINX Ingress Tag'
+        required: true
+        default: 'v1.15.5'
+      module_tag:
+        description: 'Fastly Module Tag'
+        required: true
+        default: '1.4.0'
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      # 1. Checkout your Fastly module repository
+      - name: Checkout Fastly Repository
+        uses: actions/checkout@v4
+        with:
+          path: 'fastly-module'
+
+      # 2. Checkout the Chainguard fork
+      - name: Checkout Chainguard Fork
+        uses: actions/checkout@v4
+        with:
+          repository: 'chainguard-forks/ingress-nginx'
+          ref: 'controller${{github.event.inputs.nginx_tag}}'
+          path: 'ingress-nginx-fork'
+
+      # 3. Build the Chainguard Base Image
+      - name: Build Chainguard Controller Image
+        run: |
+          cd ingress-nginx-fork
+          
+          make build ARCH=amd64
+          make image ARCH=amd64 REGISTRY=local-chainguard-ingress TAG=${{ github.event.inputs.nginx_tag }}
+
+      # 4. Login to Docker Hub
+      - name: Login to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_API_TOKEN }}
+
+      # 5. Build and Push the Fastly Image
+      - name: Build and Push image to Docker Hub
+        env:
+          # Changed to a new, distinct repository to avoid overwriting the legacy image
+          REPO: signalsciences/sigsci-nginx-ingress-controller-chainguard
+        run: |
+          cd fastly-module
+          
+          docker build --build-arg PKGNAME=nginx-module-sigsci-nxo --tag ${REPO} -f Dockerfile.chainguard .
+            
+          docker push ${REPO}:latest
