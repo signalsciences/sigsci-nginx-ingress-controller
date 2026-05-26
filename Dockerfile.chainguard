@@ -33,6 +33,5 @@ RUN apk -U upgrade && apk add --no-cache gnupg wget curl --virtual ./build_deps 
 
 # Switch back to the non-privileged user for executing nginx at runtime.
 # NOTE: Upstream uses `www-data`, but Chainguard uses `nonroot`. 
-# Defaulting to nonroot to match Chainguard's standard architecture.
 USER www-data
 
