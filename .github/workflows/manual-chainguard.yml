@@ -28,13 +28,13 @@ jobs:
     steps:
       # 1. Checkout module repository
       - name: Checkout Fastly Repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           path: 'fastly-module'
 
       # 2. Checkout the Chainguard fork
       - name: Checkout Chainguard Fork
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           repository: 'chainguard-forks/ingress-nginx'
           ref: 'controller-${{ env.NGINX_TAG }}'
