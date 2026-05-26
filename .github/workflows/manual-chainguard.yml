@@ -1,0 +1,77 @@
+name: Manual Push Docker Hub Image (Chainguard Fork)
+
+on:
+  pull_request: 
+    branches: [ "main", "ingress-nginx-chainguard" ]
+  workflow_dispatch:
+    inputs:
+      nginx_tag:
+        description: 'NGINX Ingress Tag'
+        required: true
+        default: 'v1.15.5'
+      module_tag:
+        description: 'Fastly Module Tag'
+        required: true
+        default: '1.4.0'
+
+permissions:
+  contents: read
+
+# Set up global environment variables with fallbacks for PR runs
+env:
+  NGINX_TAG: ${{ github.event.inputs.nginx_tag || 'v1.15.5' }}
+  MODULE_TAG: ${{ github.event.inputs.module_tag || '1.4.0' }}
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      # 1. Checkout module repository
+      - name: Checkout Fastly Repository
+        uses: actions/checkout@v5
+        with:
+          path: 'fastly-module'
+
+      # 2. Checkout the Chainguard fork
+      - name: Checkout Chainguard Fork
+        uses: actions/checkout@v5
+        with:
+          repository: 'chainguard-forks/ingress-nginx'
+          ref: 'controller-${{ env.NGINX_TAG }}'
+          path: 'ingress-nginx-fork'
+
+      # 3. Build the Chainguard Base Image
+      - name: Build Chainguard Controller Image
+        run: |
+          cd ingress-nginx-fork
+          
+          make build ARCH=amd64
+          # Using the env variable here as well
+          make image ARCH=amd64 REGISTRY=local-chainguard-ingress TAG=${{ env.NGINX_TAG }}
+
+      # 4. Login to Docker Hub (Only needed if we are pushing)
+      - name: Login to Docker Hub
+        # Skip this step on automated PR runs to protect your credentials
+        if: github.event_name == 'workflow_dispatch'
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_API_TOKEN }}
+
+      # 5. Build and conditionally Push the Fastly Image
+      - name: Build and Push image to Docker Hub
+        env:
+          REPO: signalsciences/sigsci-nginx-ingress-controller-chainguard
+        run: |
+          cd fastly-module
+          
+          # Always build the image (proves the code compiles on the PR)
+          docker build --build-arg PKGNAME=nginx-module-sigsci-nxo --tag ${REPO} -f Dockerfile.chainguard .
+            
+          # Only push if someone clicked the manual run button
+          if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
+            echo "Manual run detected. Pushing to Docker Hub..."
+            docker push ${REPO}:latest
+          else
+            echo "Automated PR run detected. Skipping Docker push to protect 'latest' tag."
+          fi

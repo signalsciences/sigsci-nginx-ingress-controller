@@ -1,0 +1,37 @@
+# Defaulting to a local tag, but this can be overridden during build
+# e.g., docker build --build-arg LOCAL_CHAINGUARD_IMAGE=my-local-chainguard-fork:v1.0 .
+# ARG LOCAL_CHAINGUARD_IMAGE=${LOCAL_CHAINGUARD_IMAGE:-localhost/chainguard-ingress-nginx-controller:latest}
+ARG LOCAL_CHAINGUARD_IMAGE=${LOCAL_CHAINGUARD_IMAGE:-local-chainguard-ingress/controller:v1.15.5}
+FROM ${LOCAL_CHAINGUARD_IMAGE}
+
+ARG PKGNAME=${PKGNAME:-nginx-module-sigsci-nxo}
+
+# Change to the root user to update the container
+USER root
+
+# Install Signal Sciences dependencies and nginx native module
+# NOTE: The nginx native module to be installed needs to be for
+#       the correct version of nginx installed.
+RUN apk -U upgrade && apk add --no-cache gnupg wget curl --virtual ./build_deps \
+    # Hardcoding Alpine release to match the Fastly repository path
+    # && ALPINE_RELEASE=$(cat /etc/alpine-release | cut -d'.' -f1,2) \
+    && ALPINE_RELEASE=3.21 \
+    # Figure out which nginx is installed in the container
+    && NGXVERSION=$(nginx -v 2>&1 | sed 's%^[^/]*/\([0-9]*\.[0-9]*\.[0-9]*\).*%\1%') \
+    # Get the latest version of the sigsci nginx native module
+    && MODULE_VERSION=$(wget -O- -q https://dl.security.fastly.com/sigsci-module-nginx-native/VERSION) \
+    # Get the correct sigsci nginx native module based on alpine version, nginx version, and module version
+    && wget https://apk.security.fastly.com/sigsci_apk.pub && mv sigsci_apk.pub /etc/apk/keys \
+    && echo "https://apk.security.fastly.com/${ALPINE_RELEASE}/main" | tee -a /etc/apk/repositories \
+    && apk update \
+    && apk add ${PKGNAME}-${NGXVERSION} \
+    && ln -s /usr/lib/nginx/modules/ngx_http_sigsci_module.so /etc/nginx/modules/ngx_http_sigsci_module.so \
+    && sed -i 's@^pid.*@&\nload_module /usr/lib/nginx/modules/ngx_http_sigsci_module.so;\n@' /etc/nginx/nginx.conf \
+    # cleanup
+    && apk del --no-cache ./build_deps \
+    && rm /etc/apk/keys/sigsci_apk.pub
+
+# Switch back to the non-privileged user for executing nginx at runtime.
+# NOTE: Upstream uses `www-data`, but Chainguard uses `nonroot`. 
+USER www-data
+
