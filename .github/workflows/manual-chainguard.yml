@@ -26,7 +26,7 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
     steps:
-      # 1. Checkout your Fastly module repository
+      # 1. Checkout module repository
       - name: Checkout Fastly Repository
         uses: actions/checkout@v4
         with:
