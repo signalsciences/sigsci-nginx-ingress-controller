@@ -8,7 +8,7 @@ on:
       nginx_tag:
         description: 'NGINX Ingress Tag'
         required: true
-        default: 'v1.15.5'
+        default: 'v1.15.6'
       module_tag:
         description: 'Fastly Module Tag'
         required: true
@@ -19,7 +19,7 @@ permissions:
 
 # Set up global environment variables with fallbacks for PR runs
 env:
-  NGINX_TAG: ${{ github.event.inputs.nginx_tag || 'v1.15.5' }}
+  NGINX_TAG: ${{ github.event.inputs.nginx_tag || 'v1.15.6' }}
   MODULE_TAG: ${{ github.event.inputs.module_tag || '1.4.0' }}
 
 jobs:
