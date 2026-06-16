@@ -1,3 +1,4 @@
+# Supports multi-architecture builds (linux/amd64 and linux/arm64)
 # Defaulting to a local tag, but this can be overridden during build
 # e.g., docker build --build-arg LOCAL_CHAINGUARD_IMAGE=my-local-chainguard-fork:v1.0 .
 # ARG LOCAL_CHAINGUARD_IMAGE=${LOCAL_CHAINGUARD_IMAGE:-localhost/chainguard-ingress-nginx-controller:latest}
@@ -34,4 +35,3 @@ RUN apk -U upgrade && apk add --no-cache gnupg wget curl --virtual ./build_deps 
 # Switch back to the non-privileged user for executing nginx at runtime.
 # NOTE: Upstream uses `www-data`, but Chainguard uses `nonroot`. 
 USER www-data
-
