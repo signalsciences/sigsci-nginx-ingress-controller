@@ -8,7 +8,7 @@ on:
       chainguard_tag:
         description: 'Chainguard Ingress Tag'
         required: true
-        default: 'v1.15.6'
+        default: 'v1.15.7'
       module_tag:
         description: 'Fastly Module Tag'
         required: true
