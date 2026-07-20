@@ -2,7 +2,7 @@ name: Manual Push Docker Hub Image (Chainguard Fork)
 
 on:
   pull_request: 
-    branches: [ "main", "add-linux-arm-support" ]
+    branches: [ "main", "jcocks/fix-arm64" ]
   workflow_dispatch:
     inputs:
       chainguard_tag:
@@ -65,12 +65,12 @@ jobs:
           
           # Build and push AMD64 base image
           make build ARCH=amd64
-          make image ARCH=amd64 REGISTRY=localhost:5000/local-chainguard-ingress TAG=${{ env.CHAINGUARD_TAG }}-amd64
+          make image ARCH=amd64 PLATFORM=linux/amd64 REGISTRY=localhost:5000/local-chainguard-ingress TAG=${{ env.CHAINGUARD_TAG }}-amd64
           docker push localhost:5000/local-chainguard-ingress/controller:${{ env.CHAINGUARD_TAG }}-amd64
 
           # Build and push ARM64 base image
           make build ARCH=arm64
-          make image ARCH=arm64 REGISTRY=localhost:5000/local-chainguard-ingress TAG=${{ env.CHAINGUARD_TAG }}-arm64
+          make image ARCH=arm64 PLATFORM=linux/arm64 REGISTRY=localhost:5000/local-chainguard-ingress TAG=${{ env.CHAINGUARD_TAG }}-arm64
           docker push localhost:5000/local-chainguard-ingress/controller:${{ env.CHAINGUARD_TAG }}-arm64
 
           # Create and push multi-arch manifest list in local registry
