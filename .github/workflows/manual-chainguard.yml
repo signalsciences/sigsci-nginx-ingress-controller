@@ -2,7 +2,7 @@ name: Manual Push Docker Hub Image (Chainguard Fork)
 
 on:
   pull_request: 
-    branches: [ "main", "jcocks/fix-arm64" ]
+    branches: [ "main" ]
   workflow_dispatch:
     inputs:
       chainguard_tag:
@@ -78,7 +78,7 @@ jobs:
             localhost:5000/local-chainguard-ingress/controller:${{ env.CHAINGUARD_TAG }}-amd64 \
             localhost:5000/local-chainguard-ingress/controller:${{ env.CHAINGUARD_TAG }}-arm64
 
-          # Explicitly annotate platform architectures because local builds default to the host architecture metadata (amd64)
+          # Explicitly annotate platform architectures because local builds default to the $PLATFORM
           docker manifest annotate localhost:5000/local-chainguard-ingress/controller:${{ env.CHAINGUARD_TAG }} \
             localhost:5000/local-chainguard-ingress/controller:${{ env.CHAINGUARD_TAG }}-amd64 --os linux --arch amd64
           docker manifest annotate localhost:5000/local-chainguard-ingress/controller:${{ env.CHAINGUARD_TAG }} \
