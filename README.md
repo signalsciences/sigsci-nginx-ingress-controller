@@ -12,6 +12,39 @@ Use `Dockerfile.nginxinc` if you want to add the Signal Sciences NGINX module in
 
 Prebuilt images are hosted here: https://hub.docker.com/repository/docker/signalsciences/sigsci-nginxinc-ingress-controller
 
+***Chainguard fork***
+`kubernetes/ingress-nginx` was archived on March 24, 2026. `Dockerfile.chainguard` builds against the Chainguard fork (https://github.com/chainguard-forks/ingress-nginx) instead.
+
+Prebuilt images are hosted here: https://hub.docker.com/repository/docker/signalsciences/sigsci-nginx-ingress-controller-chainguard
+
+## ModSecurity is not available in the Chainguard image
+
+The upstream NGINX base image ships ModSecurity, the OWASP Core Rule Set and the
+`ngx_http_modsecurity_module` NGINX module. `Dockerfile.chainguard` deletes all of
+them: the Fastly Next-Gen WAF module provides WAF functionality in this image, and
+carrying a second WAF only adds size and vulnerability reports for code that nothing
+uses.
+
+As a result, ModSecurity cannot be turned on in this image. Either of these will
+stop NGINX from starting:
+
+* `enable-modsecurity: "true"` in the controller ConfigMap
+* the `nginx.ingress.kubernetes.io/enable-modsecurity: "true"` Ingress annotation
+
+The remaining ModSecurity settings (`enable-owasp-modsecurity-crs`,
+`nginx.ingress.kubernetes.io/enable-owasp-core-rules`, `modsecurity-snippet`,
+`modsecurity-transaction-id`) only take effect once ModSecurity is enabled, so on
+their own they are ignored exactly as they were before.
+
+If ModSecurity is enabled, NGINX fails its configuration check with:
+
+```
+nginx: [emerg] open() "/etc/nginx/MODSECURITY-REMOVED-FROM-THIS-IMAGE-unset-enable-modsecurity.conf" failed (2: No such file or directory)
+```
+
+Unset the setting to start NGINX. All of these default to off, so an installation
+that has not deliberately enabled ModSecurity is unaffected.
+
 ## Helm install instructions with override file
 
 The following are steps to install [kubernetes/ingress-nginx](https://github.com/kubernetes/ingress-nginx) via helm using the sigsci-values.yaml override file. This adds the custom sigsci-nginx-ingress-controller and sigsci-agent.

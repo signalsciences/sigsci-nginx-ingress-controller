@@ -8,7 +8,7 @@ on:
       chainguard_tag:
         description: 'Chainguard Ingress Tag'
         required: true
-        default: 'v1.15.7'
+        default: 'v1.15.10'
       module_tag:
         description: 'Fastly Module Tag'
         required: true
@@ -19,8 +19,13 @@ permissions:
 
 # Set up global environment variables with fallbacks for PR runs
 env:
-  CHAINGUARD_TAG: ${{ github.event.inputs.chainguard_tag || 'v1.15.6' }}
+  CHAINGUARD_TAG: ${{ github.event.inputs.chainguard_tag || 'v1.15.10' }}
   MODULE_TAG: ${{ github.event.inputs.module_tag || '1.4.0' }}
+  # The fork pins GOLANG_VERSION at 1.26.2, which carries 63 known stdlib CVEs
+  # and is the largest source of vulnerability reports against this image.
+  # Override the toolchain used to compile the controller; go.mod only requires
+  # go 1.26.1, so a newer patch release needs no source changes.
+  GO_VERSION: '1.26.6'
 
 jobs:
   deploy:
@@ -64,12 +69,15 @@ jobs:
           cd ingress-nginx-fork
           
           # Build and push AMD64 base image
-          make build ARCH=amd64
+          # TAG is baked into the binary as version.RELEASE. Without it the build
+          # falls back to the fork's TAG file, which it does not bump per release,
+          # so the controller reported v1.15.5 whatever image tag it shipped under.
+          make build ARCH=amd64 GO_VERSION=${{ env.GO_VERSION }} TAG=${{ env.CHAINGUARD_TAG }}
           make image ARCH=amd64 PLATFORM=linux/amd64 REGISTRY=localhost:5000/local-chainguard-ingress TAG=${{ env.CHAINGUARD_TAG }}-amd64
           docker push localhost:5000/local-chainguard-ingress/controller:${{ env.CHAINGUARD_TAG }}-amd64
 
           # Build and push ARM64 base image
-          make build ARCH=arm64
+          make build ARCH=arm64 GO_VERSION=${{ env.GO_VERSION }} TAG=${{ env.CHAINGUARD_TAG }}
           make image ARCH=arm64 PLATFORM=linux/arm64 REGISTRY=localhost:5000/local-chainguard-ingress TAG=${{ env.CHAINGUARD_TAG }}-arm64
           docker push localhost:5000/local-chainguard-ingress/controller:${{ env.CHAINGUARD_TAG }}-arm64
 
