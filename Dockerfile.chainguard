@@ -2,7 +2,7 @@
 # Defaulting to a local tag, but this can be overridden during build
 # e.g., docker build --build-arg LOCAL_CHAINGUARD_IMAGE=my-local-chainguard-fork:v1.0 .
 # ARG LOCAL_CHAINGUARD_IMAGE=${LOCAL_CHAINGUARD_IMAGE:-localhost/chainguard-ingress-nginx-controller:latest}
-ARG LOCAL_CHAINGUARD_IMAGE=${LOCAL_CHAINGUARD_IMAGE:-local-chainguard-ingress/controller:v1.15.6}
+ARG LOCAL_CHAINGUARD_IMAGE=${LOCAL_CHAINGUARD_IMAGE:-local-chainguard-ingress/controller:v1.15.10}
 FROM ${LOCAL_CHAINGUARD_IMAGE}
 
 ARG PKGNAME=${PKGNAME:-nginx-module-sigsci-nxo}
@@ -31,6 +31,52 @@ RUN apk -U upgrade && apk add --no-cache gnupg wget curl --virtual ./build_deps 
     # cleanup
     && apk del --no-cache ./build_deps \
     && rm /etc/apk/keys/sigsci_apk.pub
+
+# Remove ModSecurity. It arrives pre-built in the NGINX base image that the
+# Chainguard fork pins in NGINX_BASE, not from anything built here. Nothing
+# in this image uses it, and its dependencies are a recurring source of CVE
+# reports against an image that only needs the Fastly module installed above.
+#
+# ssdeep (libfuzzy) and yajl are linked by ModSecurity and by nothing else in
+# the image, so they go too. libxml2, libcurl and libmaxminddb stay: njs,
+# OpenTelemetry and GeoIP2 link them as well.
+#
+# The final check fails the build if anything survives, so a future base image
+# that relocates these paths cannot quietly reintroduce ModSecurity.
+RUN rm -rf \
+      /usr/local/modsecurity \
+      /etc/nginx/modsecurity \
+      /etc/nginx/owasp-modsecurity-crs \
+      /etc/nginx/modules/ngx_http_modsecurity_module.so \
+      /opt/modsecurity \
+      /var/log/audit \
+      /usr/local/bin/ssdeep \
+      /usr/local/include/fuzzy.h \
+      /usr/local/lib/libfuzzy.la \
+      /usr/local/lib/libfuzzy.so \
+      /usr/local/lib/libfuzzy.so.2 \
+      /usr/local/lib/libfuzzy.so.2.1.0 \
+      /usr/local/share/man/man1/ssdeep.1 \
+    && apk del --no-cache yajl \
+    && if find / \( -iname '*modsec*' -o -iname '*ssdeep*' -o -iname '*fuzzy*' -o -iname '*yajl*' \) 2>/dev/null | grep -q .; then \
+         echo "ERROR: ModSecurity artifacts remain in the image:" >&2; \
+         find / \( -iname '*modsec*' -o -iname '*ssdeep*' -o -iname '*fuzzy*' -o -iname '*yajl*' \) 2>/dev/null >&2; \
+         exit 1; \
+       fi
+
+# The controller renders nginx.conf from this template and emits the
+# ModSecurity `load_module` line whenever `enable-modsecurity` is set in the
+# controller ConfigMap, or the nginx.ingress.kubernetes.io/enable-modsecurity
+# annotation is set on an Ingress. With the module deleted that would fail as a
+# bare dlopen() error that reads like a broken image, so point the line at a
+# file that does not exist instead: NGINX then stops with the missing path,
+# which names the actual cause.
+#
+# `grep` fails the build if the upstream template stops matching, so the guard
+# cannot silently go missing.
+RUN grep -qxF 'load_module /etc/nginx/modules/ngx_http_modsecurity_module.so;' /etc/nginx/template/nginx.tmpl \
+    && sed -i 's@^load_module /etc/nginx/modules/ngx_http_modsecurity_module\.so;$@# ModSecurity has been removed from this image. The Fastly Next-Gen WAF\n# module (ngx_http_sigsci_module) provides WAF functionality instead.\n# Unset enable-modsecurity to start NGINX.\ninclude /etc/nginx/MODSECURITY-REMOVED-FROM-THIS-IMAGE-unset-enable-modsecurity.conf;@' \
+      /etc/nginx/template/nginx.tmpl
 
 # Switch back to the non-privileged user for executing nginx at runtime.
 # NOTE: Upstream uses `www-data`, but Chainguard uses `nonroot`. 
