@@ -8,7 +8,7 @@ on:
       chainguard_tag:
         description: 'Chainguard Ingress Tag'
         required: true
-        default: 'v1.15.10'
+        default: 'v1.15.12'
       module_tag:
         description: 'Fastly Module Tag'
         required: true
@@ -25,7 +25,7 @@ env:
   # and is the largest source of vulnerability reports against this image.
   # Override the toolchain used to compile the controller; go.mod only requires
   # go 1.26.1, so a newer patch release needs no source changes.
-  GO_VERSION: '1.26.6'
+  GO_VERSION: '1.26.10'
 
 jobs:
   deploy:
