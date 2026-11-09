@@ -3,22 +3,25 @@ name: Produce Docker Image with nginxinc upstream support, GH Release & Create P
 on:
   workflow_dispatch:
 
+permissions:
+  contents: write       # push the match-version branch and create the release
+  pull-requests: write  # open the PR and request reviewers
+
 jobs:
-  # Compare nginxinc/kubernetes-ingress version with sigsci-nginx-ingress-controller version
-  # If new version build and push container to docker hub
+  # Find the newest stable nginx/kubernetes-ingress release
+  # If our image for that version is not on Docker Hub yet, build and push the container to docker hub
   # Create and tag new release
   # Update sigsci-nginxinc-value.yaml file & create PR
   compare_versions:
     runs-on: ubuntu-latest
     env:
-      GH_REPO: https://api.github.com/repos/signalsciences/sigsci-nginx-ingress-controller
       VALUES_FILE: sigsci-nginxinc-values.yaml
     outputs:
       value: ${{ steps.tag.outputs.NO_CHANGE }}
     steps:
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v4
     - name: Login to Docker Hub
-      uses: docker/login-action@v1
+      uses: docker/login-action@v3
       with:
         username: ${{ secrets.DOCKERHUB_USERNAME }}
         password: ${{ secrets.DOCKERHUB_API_TOKEN }}
@@ -26,62 +29,82 @@ jobs:
       id: tag
       env:
         REPO: signalsciences/sigsci-nginxinc-ingress-controller
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       run: |
-        NGINXINC_INGRESS_LATEST="$(curl -sL https://api.github.com/repos/nginxinc/kubernetes-ingress/releases | grep "tag_name" -m1 | cut -d '"' -f4 | cut -d 'v' -f2)"
-        SIGSCI_LATEST=$(curl -sL ${{ env.GH_REPO }}/releases | grep "tag_name" | grep -m1 "tag_name" | cut -d '"' -f4)
-
-        version() { echo "$@" | awk -F. '{ printf("%d%03d%03d\n", $1,$2,$3); }'; }
-
-        if [ $(version $NGINXINC_INGRESS_LATEST) -eq $(version $SIGSCI_LATEST) ]; then
-          echo "ingress-nginx version: $NGINXINC_INGRESS_LATEST -- matches sigsci version: $SIGSCI_LATEST"
-          echo "::set-output name=NO_CHANGE::true"
-        else
-          TAG=$NGINXINC_INGRESS_LATEST
-          docker build . --file Dockerfile.nginxinc --build-arg NGINX_INGRESS_VERSION=${TAG} --tag ${REPO}:${TAG}
-          docker push ${REPO}:${TAG}
-          echo NEW_TAG=$TAG >> $GITHUB_ENV
-          echo "::set-output name=NO_CHANGE::false"
+        # Newest stable vX.Y.Z release of nginx/kubernetes-ingress. latest-version.sh picks the
+        # highest version (not the most recently published release) and ignores pre-releases and
+        # the "2026-lts-rN" tags, which are NGINX Plus only.
+        TAG="$(./scripts/latest-version.sh nginxinc)"
+        if [ -z "${TAG}" ]; then
+          echo "::error::Could not determine the latest nginx/kubernetes-ingress release"
+          exit 1
         fi
-    
+
+        # Already published? Ask Docker Hub instead of our GitHub releases: those hold the
+        # kubernetes/ingress-nginx releases, so they never match an nginxinc version.
+        if OUT="$(docker buildx imagetools inspect "${REPO}:${TAG}" 2>&1)"; then
+          echo "nginxinc version: ${TAG} -- ${REPO}:${TAG} is already on Docker Hub"
+          echo "NO_CHANGE=true" >> "$GITHUB_OUTPUT"
+        elif grep -qi 'not found' <<< "${OUT}"; then
+          docker build . --file Dockerfile.nginxinc --build-arg NGINX_INGRESS_VERSION="${TAG}" --tag "${REPO}:${TAG}"
+          # Only the version tag is pushed here; "latest" is moved by manual-nginxinc.yml
+          docker push "${REPO}:${TAG}"
+          echo "NEW_TAG=${TAG}" >> "$GITHUB_ENV"
+          echo "NO_CHANGE=false" >> "$GITHUB_OUTPUT"
+        else
+          # Do not rebuild and overwrite a published tag because of a transient registry error
+          echo "::error::Could not check Docker Hub for ${REPO}:${TAG}: ${OUT}"
+          exit 1
+        fi
+
     - name: Create Release
       if: ${{ steps.tag.outputs.NO_CHANGE == 'false' }}
-      uses: actions/create-release@v1
       env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      with:
-        tag_name: ${{ env.NEW_TAG }}
-        release_name: Match release ${{ env.NEW_TAG }}
-        body: |
-         Match release nginxinc/kubernetes-ingress v${{ env.NEW_TAG }}
-        draft: false
-        prerelease: false
+        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      run: |
+        # --latest=false keeps the kubernetes/ingress-nginx releases as this repo's "Latest" release
+        gh release create "${NEW_TAG}" \
+          --repo "${GITHUB_REPOSITORY}" \
+          --title "Match release ${NEW_TAG}" \
+          --notes "Match release nginx/kubernetes-ingress v${NEW_TAG}" \
+          --latest=false
 
     - name: Update ${{ env.VALUES_FILE }} & create PR
+      id: pr
       if: ${{ steps.tag.outputs.NO_CHANGE == 'false' }}
+      env:
+        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       run: |
+        # One branch per version, so it cannot collide with the match-version-release branch
+        # used by the kubernetes-ingress workflow
+        BRANCH="match-nginxinc-version-${NEW_TAG}"
         git config --local user.email "github-actions[bot]@users.noreply.github.com"
         git config --local user.name "github-actions[bot]"
-        git checkout -b match-version-release
-        sed -i "s/tag:.*/tag: \"${{ env.NEW_TAG }}\"/g" ${{ env.VALUES_FILE }}
-        git commit -am "Automated PR - Match upstream version" && git push -u origin match-version-release
+        git checkout -b "${BRANCH}"
+        sed -i "s/tag:.*/tag: \"${NEW_TAG}\"/g" "${VALUES_FILE}"
+        if git diff --quiet; then
+          echo "${VALUES_FILE} already uses ${NEW_TAG}; no PR needed"
+          exit 0
+        fi
+        git commit -am "Automated PR - Match upstream version"
+        git push -u origin "${BRANCH}"
 
-        curl -X POST -u ${{ github.actor }}:${{ secrets.GITHUB_TOKEN }} \
-        ${{ env.GH_REPO }}/pulls --data '{"head":"match-version-release","base":"main","body":"Automated PR","title":"Match Version ${{ env.NEW_TAG}}"}'
+        PR_NUM="$(gh api "repos/${GITHUB_REPOSITORY}/pulls" \
+          -f head="${BRANCH}" -f base=main \
+          -f title="Match Version ${NEW_TAG}" -f body="Automated PR" \
+          --jq '.number')"
+        echo "number=${PR_NUM}" >> "$GITHUB_OUTPUT"
 
-    - name: Pull latest PR Num
-      if: ${{ steps.tag.outputs.NO_CHANGE == 'false' }}
+    - name: Add reviewers to the PR
+      if: ${{ steps.pr.outputs.number != '' }}
+      env:
+        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        PR_NUM: ${{ steps.pr.outputs.number }}
       run: |
-        pr_number=$(curl -s \
-        -H "Accept: application/vnd.github.v3+json" \
-        -u ${{ github.actor }}:${{ secrets.GITHUB_TOKEN }} \
-        ${{ env.GH_REPO }}/pulls | jq -r '.[].number')
-        echo PR_NUM=$pr_number >> $GITHUB_ENV
-
-    - name: Add reviewers to latest PR
-      if: ${{ steps.tag.outputs.NO_CHANGE == 'false' }}
-      run: |
-        curl -s \
-        -H "Accept: application/vnd.github.v3+json" \
-        -u ${{ github.actor }}:${{ secrets.GITHUB_TOKEN }} \
-        ${{ env.GH_REPO }}/pulls/${{ env.PR_NUM }}/requested_reviewers \
-        --data '{"reviewers":["bbucher-sigsci","leaf-fastly","rell-fastly"]}'
+        # One request per reviewer: GitHub rejects the whole request if any login is not a
+        # collaborator of this repo
+        for reviewer in bbucher-sigsci rell-fastly; do
+          gh api "repos/${GITHUB_REPOSITORY}/pulls/${PR_NUM}/requested_reviewers" \
+            -f "reviewers[]=${reviewer}" > /dev/null \
+            || echo "::warning::Could not request a review from ${reviewer}"
+        done
