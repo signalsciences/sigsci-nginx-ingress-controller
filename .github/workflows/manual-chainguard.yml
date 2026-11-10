@@ -8,7 +8,7 @@ on:
       chainguard_tag:
         description: 'Chainguard Ingress Tag'
         required: true
-        default: 'v1.15.12'
+        default: 'v1.15.13'
       module_tag:
         description: 'Fastly Module Tag'
         required: true
@@ -19,13 +19,15 @@ permissions:
 
 # Set up global environment variables with fallbacks for PR runs
 env:
-  CHAINGUARD_TAG: ${{ github.event.inputs.chainguard_tag || 'v1.15.10' }}
+  # Keep this fallback equal to the chainguard_tag input default above, so that a PR
+  # run builds the same tag a dispatch would publish.
+  CHAINGUARD_TAG: ${{ github.event.inputs.chainguard_tag || 'v1.15.13' }}
   MODULE_TAG: ${{ github.event.inputs.module_tag || '1.4.0' }}
   # The fork pins GOLANG_VERSION at 1.26.2, which carries 63 known stdlib CVEs
   # and is the largest source of vulnerability reports against this image.
   # Override the toolchain used to compile the controller; go.mod only requires
   # go 1.26.1, so a newer patch release needs no source changes.
-  GO_VERSION: '1.26.10'
+  GO_VERSION: '1.26.11'
 
 jobs:
   deploy:
