@@ -65,6 +65,14 @@ jobs:
 
       # 4. Build the Chainguard Base Image for both architectures
       - name: Build Chainguard Controller Image
+        env:
+          # Docker 29 (now on ubuntu-latest) defaults to the containerd image store, where a
+          # build adds a provenance attestation. Each per-arch image pushed below would then
+          # be an image index, and `docker manifest create` refuses indexes ("... is a
+          # manifest list"). These images are intermediates in the throwaway registry on the
+          # runner and are never published, so keep them plain. Deliberately scoped to this
+          # step: the final build below, which is the one that gets published, is unchanged.
+          BUILDX_NO_DEFAULT_ATTESTATIONS: "1"
         run: |
           cd ingress-nginx-fork
           
