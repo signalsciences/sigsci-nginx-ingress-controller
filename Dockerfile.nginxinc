@@ -11,9 +11,8 @@ USER root
 #       the correct version of nginx installed; this applies
 #       to both nginx.org and openresty nginx distributions.
 RUN apk update && apk add --no-cache gnupg wget --virtual ./build_deps \
-    # Figure out which alpine release this is
-    && ALPINE_RELEASE=$(cat /etc/alpine-release) \
-    && ALPINE_RELEASE=${ALPINE_RELEASE::-2} \
+    # Figure out which alpine release (major.minor, e.g. 3.24 for 3.24.4) this is
+    && ALPINE_RELEASE=$(cut -d. -f1,2 /etc/alpine-release) \
     # Figure out which nginx is installed in the container
     && NGXVERSION=$(nginx -v 2>&1 | sed 's%^[^/]*/\([0-9]*\.[0-9]*\.[0-9]*\).*%\1%') \
     # Get the latest version of the sigsci nginx native module
@@ -26,5 +25,8 @@ RUN apk update && apk add --no-cache gnupg wget --virtual ./build_deps \
     # cleanup
     && apk del --no-cache ./build_deps \
     && rm /etc/apk/keys/sigsci_apk.pub
-# Change back to the www-data user for executing nginx at runtime
-USER www-data
+# Change back to the unprivileged nginx user (uid 101) for executing nginx at runtime.
+# NOTE: Use the numeric uid. The upstream nginx/nginx-ingress image has no `www-data`
+#       user, so `USER www-data` makes the container refuse to start unless the
+#       orchestrator overrides the user (the Helm chart does, with runAsUser: 101).
+USER 101
