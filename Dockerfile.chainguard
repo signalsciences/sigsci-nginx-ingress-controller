@@ -16,7 +16,7 @@ USER root
 RUN apk -U upgrade && apk add --no-cache gnupg wget curl --virtual ./build_deps \
     # Hardcoding Alpine release to match the Fastly repository path
     # && ALPINE_RELEASE=$(cat /etc/alpine-release | cut -d'.' -f1,2) \
-    && ALPINE_RELEASE=3.21 \
+    && ALPINE_RELEASE=3.23 \
     # Figure out which nginx is installed in the container
     && NGXVERSION=$(nginx -v 2>&1 | sed 's%^[^/]*/\([0-9]*\.[0-9]*\.[0-9]*\).*%\1%') \
     # Get the latest version of the sigsci nginx native module
