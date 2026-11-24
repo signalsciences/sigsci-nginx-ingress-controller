@@ -1,41 +1,61 @@
 # Supports multi-architecture builds (linux/amd64 and linux/arm64)
+#
+# The base is the ingress-nginx controller image built from the Chainguard fork
+# (https://github.com/chainguard-forks/ingress-nginx) at CHAINGUARD_TAG. It has
+# to be built on NGINX from the fork's own images/nginx, not on the image the
+# fork's NGINX_BASE file names: that image predates the fork's NGINX patches,
+# and the Fastly module installed below is built for NGINX with those patches.
+# .github/workflows/manual-chainguard.yml builds it that way.
+#
 # Defaulting to a local tag, but this can be overridden during build
 # e.g., docker build --build-arg LOCAL_CHAINGUARD_IMAGE=my-local-chainguard-fork:v1.0 .
-# ARG LOCAL_CHAINGUARD_IMAGE=${LOCAL_CHAINGUARD_IMAGE:-localhost/chainguard-ingress-nginx-controller:latest}
-ARG LOCAL_CHAINGUARD_IMAGE=${LOCAL_CHAINGUARD_IMAGE:-local-chainguard-ingress/controller:v1.15.13}
+ARG CHAINGUARD_TAG=v1.15.16
+ARG LOCAL_CHAINGUARD_IMAGE=local-chainguard-ingress/controller:${CHAINGUARD_TAG}
 FROM ${LOCAL_CHAINGUARD_IMAGE}
 
-ARG PKGNAME=${PKGNAME:-nginx-module-sigsci-nxo}
+# The fork release the base image was built from. It selects the Fastly module:
+# the fork's NGINX patches change the layout of NGINX's core structs, so the
+# module is built for each fork release and its package version is that release
+# (nginx-module-fastly-nxd 1.15.16 for controller-v1.15.16). The package for a
+# release has to be published before this image can move to that release.
+ARG CHAINGUARD_TAG
+
+# sha256 of https://apk.security.fastly.com/sigsci_apk.pub, the public key that
+# signs the repository index. The key is downloaded from the same host as the
+# packages, so trusting whatever is served would verify nothing. If the build
+# stops at this check the key has changed: confirm the new key with the team
+# that owns the Fastly package repositories before updating this value.
+ARG FASTLY_APK_PUBLIC_KEY_SHA256=32b2c3a72c4d9af579d6993c0d43ff21170f14d93dc892f95d0dcd28daa64c8a
 
 # Change to the root user to update the container
 USER root
 
-# Install Signal Sciences dependencies and nginx native module
-# NOTE: The nginx native module to be installed needs to be for
-#       the correct version of nginx installed.
-RUN apk -U upgrade && apk add --no-cache gnupg wget curl --virtual ./build_deps \
-    # Hardcoding Alpine release to match the Fastly repository path
-    # && ALPINE_RELEASE=$(cat /etc/alpine-release | cut -d'.' -f1,2) \
-    && ALPINE_RELEASE=3.21 \
-    # Figure out which nginx is installed in the container
-    && NGXVERSION=$(nginx -v 2>&1 | sed 's%^[^/]*/\([0-9]*\.[0-9]*\.[0-9]*\).*%\1%') \
-    # Get the latest version of the sigsci nginx native module
-    && MODULE_VERSION=$(wget -O- -q https://dl.security.fastly.com/sigsci-module-nginx-native/VERSION) \
-    # Get the correct sigsci nginx native module based on alpine version, nginx version, and module version
-    && wget https://apk.security.fastly.com/sigsci_apk.pub && mv sigsci_apk.pub /etc/apk/keys \
-    && echo "https://apk.security.fastly.com/${ALPINE_RELEASE}/main" | tee -a /etc/apk/repositories \
-    && apk update \
-    && apk add ${PKGNAME}-${NGXVERSION} \
+# Install the Fastly nginx native module built for the fork's NGINX.
+#
+# The Fastly repository is passed to this one `apk add` with -X instead of being
+# written to /etc/apk/repositories, because its key is removed again below: a
+# repository left behind without its key makes `apk update` fail in this image
+# and in every image built on it.
+#
+# The package installs the module as ngx_http_fastly_module.so. The two links
+# keep the name it had in earlier images, ngx_http_sigsci_module.so, working:
+# that is the path sigsci-values.yaml and existing installations load it from.
+RUN apk upgrade --no-cache \
+    # Trust the Fastly repository key, but only if it is the key expected
+    && wget -q -O /etc/apk/keys/sigsci_apk.pub https://apk.security.fastly.com/sigsci_apk.pub \
+    && echo "${FASTLY_APK_PUBLIC_KEY_SHA256}  /etc/apk/keys/sigsci_apk.pub" | sha256sum -c - \
+    # Get the Fastly nginx native module built for this release of the fork
+    && apk add --no-cache -X https://apk.security.fastly.com/chainguard/rolling/main "nginx-module-fastly-nxd~${CHAINGUARD_TAG#v}" \
+    && ln -s ngx_http_fastly_module.so /usr/lib/nginx/modules/ngx_http_sigsci_module.so \
     && ln -s /usr/lib/nginx/modules/ngx_http_sigsci_module.so /etc/nginx/modules/ngx_http_sigsci_module.so \
     && sed -i 's@^pid.*@&\nload_module /usr/lib/nginx/modules/ngx_http_sigsci_module.so;\n@' /etc/nginx/nginx.conf \
     # cleanup
-    && apk del --no-cache ./build_deps \
     && rm /etc/apk/keys/sigsci_apk.pub
 
-# Remove ModSecurity. It arrives pre-built in the NGINX base image that the
-# Chainguard fork pins in NGINX_BASE, not from anything built here. Nothing
-# in this image uses it, and its dependencies are a recurring source of CVE
-# reports against an image that only needs the Fastly module installed above.
+# Remove ModSecurity. It is part of the NGINX base image built from the fork's
+# images/nginx, not something this Dockerfile adds. Nothing in this image uses
+# it, and its dependencies are a recurring source of CVE reports against an
+# image that only needs the Fastly module installed above.
 #
 # ssdeep (libfuzzy) and yajl are linked by ModSecurity and by nothing else in
 # the image, so they go too. libxml2, libcurl and libmaxminddb stay: njs,
@@ -78,6 +98,52 @@ RUN grep -qxF 'load_module /etc/nginx/modules/ngx_http_modsecurity_module.so;' /
     && sed -i 's@^load_module /etc/nginx/modules/ngx_http_modsecurity_module\.so;$@# ModSecurity has been removed from this image. The Fastly Next-Gen WAF\n# module (ngx_http_sigsci_module) provides WAF functionality instead.\n# Unset enable-modsecurity to start NGINX.\ninclude /etc/nginx/MODSECURITY-REMOVED-FROM-THIS-IMAGE-unset-enable-modsecurity.conf;@' \
       /etc/nginx/template/nginx.tmpl
 
-# Switch back to the non-privileged user for executing nginx at runtime.
-# NOTE: Upstream uses `www-data`, but Chainguard uses `nonroot`. 
-USER www-data
+# Switch back to the non-privileged user (www-data, uid 101) for executing nginx
+# at runtime.
+# NOTE: Use the numeric uid, as Dockerfile.nginxinc does. With a user name
+#       Kubernetes cannot verify `runAsNonRoot` and refuses to start the
+#       container unless the pod also sets `runAsUser`.
+USER 101
+
+# Smoke test: load the module and serve a request with it.
+#
+# `nginx -t` is not enough. NGINX accepts any module built for the same version
+# with --with-compat, and if the module was built against a different layout of
+# NGINX's core structs the worker only crashes once a request reaches it
+# (AGENT-2027: the Chainguard fork's NGINX patches change that layout, so the
+# module for stock NGINX crashes the fork's NGINX, and this module crashes an
+# NGINX without the patches). So start NGINX as the runtime user, send a request
+# through the module, and fail the build unless it is answered and no worker
+# process died.
+#
+# The port is random because a multi-platform build runs this step for both
+# architectures at once, and they may share a network namespace.
+RUN set -eu; \
+    t="$(mktemp -d)"; \
+    port="$(( $(od -An -N2 -tu2 /dev/urandom) % 10000 + 20000 ))"; \
+    printf '%s\n' \
+      'load_module /usr/lib/nginx/modules/ngx_http_sigsci_module.so;' \
+      "pid ${t}/nginx.pid;" \
+      "error_log ${t}/error.log notice;" \
+      'events {}' \
+      'http {' \
+      '  access_log off;' \
+      "  client_body_temp_path ${t}/body;" \
+      "  proxy_temp_path ${t}/proxy;" \
+      "  fastcgi_temp_path ${t}/fastcgi;" \
+      "  server { listen 127.0.0.1:${port}; location / { return 200 'ok\n'; } }" \
+      '}' > "${t}/nginx.conf"; \
+    nginx -c "${t}/nginx.conf"; \
+    answered=no; \
+    for attempt in 1 2 3; do \
+      if [ "$(wget -q -T 10 -O - "http://127.0.0.1:${port}/" 2>/dev/null)" = "ok" ]; then answered=yes; break; fi; \
+      sleep 1; \
+    done; \
+    nginx -c "${t}/nginx.conf" -s quit 2>/dev/null || true; \
+    for attempt in 1 2 3 4 5 6 7 8 9 10; do [ -e "${t}/nginx.pid" ] || break; sleep 1; done; \
+    if [ "${answered}" != yes ] || grep -q 'exited on signal' "${t}/error.log"; then \
+      echo "ERROR: NGINX did not serve a request with the Fastly module loaded:" >&2; \
+      cat "${t}/error.log" >&2; \
+      exit 1; \
+    fi; \
+    rm -rf "${t}"

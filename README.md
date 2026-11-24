@@ -17,6 +17,16 @@ Prebuilt images are hosted here: https://hub.docker.com/repository/docker/signal
 
 Prebuilt images are hosted here: https://hub.docker.com/repository/docker/signalsciences/sigsci-nginx-ingress-controller-chainguard
 
+NGINX in this image is built from the fork's own sources (`images/nginx`), so it
+carries the fork's NGINX security patches. Those patches change the layout of
+NGINX's core structs, so the image installs a Fastly module built for each fork
+release (`nginx-module-fastly-nxd`, from
+`https://apk.security.fastly.com/chainguard/rolling/main`) instead of the module
+for stock NGINX. Moving the image to a new fork release therefore needs the
+module package for that release to be published first. The module is still
+loaded from `/usr/lib/nginx/modules/ngx_http_sigsci_module.so` and its
+directives are unchanged.
+
 ## ModSecurity is not available in the Chainguard image
 
 The upstream NGINX base image ships ModSecurity, the OWASP Core Rule Set and the

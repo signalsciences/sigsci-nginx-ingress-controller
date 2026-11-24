@@ -8,7 +8,7 @@ on:
       chainguard_tag:
         description: 'Chainguard Ingress Tag'
         required: true
-        default: 'v1.15.13'
+        default: 'v1.15.16'
       module_tag:
         description: 'Fastly Module Tag'
         required: true
@@ -21,7 +21,7 @@ permissions:
 env:
   # Keep this fallback equal to the chainguard_tag input default above, so that a PR
   # run builds the same tag a dispatch would publish.
-  CHAINGUARD_TAG: ${{ github.event.inputs.chainguard_tag || 'v1.15.13' }}
+  CHAINGUARD_TAG: ${{ github.event.inputs.chainguard_tag || 'v1.15.16' }}
   MODULE_TAG: ${{ github.event.inputs.module_tag || '1.4.0' }}
   # The fork pins GOLANG_VERSION at 1.26.2, which carries 63 known stdlib CVEs
   # and is the largest source of vulnerability reports against this image.
@@ -30,7 +30,69 @@ env:
   GO_VERSION: '1.26.11'
 
 jobs:
+  # Build NGINX from the fork's images/nginx, once per architecture.
+  #
+  # The fork's NGINX_BASE file still names the NGINX image the upstream project
+  # published in March 2026, before the fork existed, so an image built on it has
+  # none of the fork's NGINX patches. Those patches are most of the reason to use
+  # the fork, and they change the layout of NGINX's core structs: the Fastly
+  # module for the fork (nginx-module-fastly-nxd) is built against them and
+  # crashes an NGINX without them. So build NGINX from the fork's own sources and
+  # hand it to the controller image build below as its base.
+  #
+  # This compiles NGINX with ModSecurity, OpenTelemetry and LuaJIT, which is far
+  # too slow under QEMU, so each architecture builds on a runner of its own
+  # kind. The result is cached on the content of images/nginx/rootfs, which only
+  # changes when the fork changes its NGINX.
+  nginx-base:
+    strategy:
+      matrix:
+        include:
+          - arch: amd64
+            runner: ubuntu-latest
+          - arch: arm64
+            runner: ubuntu-24.04-arm
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 180
+    env:
+      ARCH: ${{ matrix.arch }}
+    steps:
+      - name: Checkout Chainguard Fork
+        uses: actions/checkout@v5
+        with:
+          repository: 'chainguard-forks/ingress-nginx'
+          ref: 'controller-${{ env.CHAINGUARD_TAG }}'
+          path: 'ingress-nginx-fork'
+
+      - name: Restore the NGINX base image from the cache
+        id: cache
+        uses: actions/cache@v6
+        with:
+          path: chainguard-nginx-${{ matrix.arch }}.tar.gz
+          key: chainguard-nginx-${{ matrix.arch }}-${{ hashFiles('ingress-nginx-fork/images/nginx/rootfs/**') }}
+
+      - name: Build the NGINX base image
+        if: steps.cache.outputs.cache-hit != 'true'
+        env:
+          # Keep the image plain, for the same reason as the controller images
+          # below: it is an intermediate that is never published.
+          BUILDX_NO_DEFAULT_ATTESTATIONS: "1"
+        run: |
+          docker build --tag "chainguard-nginx:${ARCH}" ingress-nginx-fork/images/nginx/rootfs
+          docker save --output "chainguard-nginx-${ARCH}.tar" "chainguard-nginx:${ARCH}"
+          gzip "chainguard-nginx-${ARCH}.tar"
+
+      - name: Upload the NGINX base image
+        uses: actions/upload-artifact@v7
+        with:
+          name: chainguard-nginx-${{ matrix.arch }}
+          path: chainguard-nginx-${{ matrix.arch }}.tar.gz
+          if-no-files-found: error
+          retention-days: 1
+          compression-level: 0
+
   deploy:
+    needs: nginx-base
     runs-on: ubuntu-latest
     services:
       registry:
@@ -65,7 +127,29 @@ jobs:
               http = true
               insecure = true
 
-      # 4. Build the Chainguard Base Image for both architectures
+      # 4. Put the NGINX base images built above into the local registry, where
+      #    the controller image builds below can use them as their base
+      - name: Download the NGINX base image (amd64)
+        uses: actions/download-artifact@v8
+        with:
+          name: chainguard-nginx-amd64
+          path: nginx-base
+
+      - name: Download the NGINX base image (arm64)
+        uses: actions/download-artifact@v8
+        with:
+          name: chainguard-nginx-arm64
+          path: nginx-base
+
+      - name: Push the NGINX base images to the local registry
+        run: |
+          for arch in amd64 arm64; do
+            docker load --input "nginx-base/chainguard-nginx-${arch}.tar.gz"
+            docker tag "chainguard-nginx:${arch}" "localhost:5000/local-chainguard-ingress/nginx:${CHAINGUARD_TAG}-${arch}"
+            docker push "localhost:5000/local-chainguard-ingress/nginx:${CHAINGUARD_TAG}-${arch}"
+          done
+
+      # 5. Build the Chainguard Base Image for both architectures
       - name: Build Chainguard Controller Image
         env:
           # Docker 29 (now on ubuntu-latest) defaults to the containerd image store, where a
@@ -82,13 +166,15 @@ jobs:
           # TAG is baked into the binary as version.RELEASE. Without it the build
           # falls back to the fork's TAG file, which it does not bump per release,
           # so the controller reported v1.15.5 whatever image tag it shipped under.
+          # BASE_IMAGE replaces the fork's NGINX_BASE with the NGINX built from the
+          # fork by the nginx-base job.
           make build ARCH=amd64 GO_VERSION=${{ env.GO_VERSION }} TAG=${{ env.CHAINGUARD_TAG }}
-          make image ARCH=amd64 PLATFORM=linux/amd64 REGISTRY=localhost:5000/local-chainguard-ingress TAG=${{ env.CHAINGUARD_TAG }}-amd64
+          make image ARCH=amd64 PLATFORM=linux/amd64 REGISTRY=localhost:5000/local-chainguard-ingress TAG=${{ env.CHAINGUARD_TAG }}-amd64 BASE_IMAGE=localhost:5000/local-chainguard-ingress/nginx:${{ env.CHAINGUARD_TAG }}-amd64
           docker push localhost:5000/local-chainguard-ingress/controller:${{ env.CHAINGUARD_TAG }}-amd64
 
           # Build and push ARM64 base image
           make build ARCH=arm64 GO_VERSION=${{ env.GO_VERSION }} TAG=${{ env.CHAINGUARD_TAG }}
-          make image ARCH=arm64 PLATFORM=linux/arm64 REGISTRY=localhost:5000/local-chainguard-ingress TAG=${{ env.CHAINGUARD_TAG }}-arm64
+          make image ARCH=arm64 PLATFORM=linux/arm64 REGISTRY=localhost:5000/local-chainguard-ingress TAG=${{ env.CHAINGUARD_TAG }}-arm64 BASE_IMAGE=localhost:5000/local-chainguard-ingress/nginx:${{ env.CHAINGUARD_TAG }}-arm64
           docker push localhost:5000/local-chainguard-ingress/controller:${{ env.CHAINGUARD_TAG }}-arm64
 
           # Create and push multi-arch manifest list in local registry
@@ -106,7 +192,7 @@ jobs:
 
           docker manifest push --insecure localhost:5000/local-chainguard-ingress/controller:${{ env.CHAINGUARD_TAG }}
 
-      # 5. Login to Docker Hub (Only needed if we are pushing)
+      # 6. Login to Docker Hub (Only needed if we are pushing)
       - name: Login to Docker Hub
         # Skip this step on automated PR runs to protect your credentials
         if: github.event_name == 'workflow_dispatch'
@@ -115,7 +201,7 @@ jobs:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_API_TOKEN }}
 
-      # 6. Build and conditionally Push the Fastly Image
+      # 7. Build and conditionally Push the Fastly Image
       - name: Build and Push image to Docker Hub
         env:
           REPO: signalsciences/sigsci-nginx-ingress-controller-chainguard
@@ -128,7 +214,7 @@ jobs:
             echo "Manual run detected. Pushing to Docker Hub..."
             docker buildx build \
               --platform linux/amd64,linux/arm64 \
-              --build-arg PKGNAME=nginx-module-sigsci-nxo \
+              --build-arg CHAINGUARD_TAG=${{ env.CHAINGUARD_TAG }} \
               --build-arg LOCAL_CHAINGUARD_IMAGE=localhost:5000/local-chainguard-ingress/controller:${{ env.CHAINGUARD_TAG }} \
               --tag ${REPO}:${{ env.CHAINGUARD_TAG }} \
               --tag ${REPO}:latest \
@@ -137,7 +223,7 @@ jobs:
             echo "Automated PR run detected. Skipping Docker push to protect 'latest' tag."
             docker buildx build \
               --platform linux/amd64,linux/arm64 \
-              --build-arg PKGNAME=nginx-module-sigsci-nxo \
+              --build-arg CHAINGUARD_TAG=${{ env.CHAINGUARD_TAG }} \
               --build-arg LOCAL_CHAINGUARD_IMAGE=localhost:5000/local-chainguard-ingress/controller:${{ env.CHAINGUARD_TAG }} \
               -f Dockerfile.chainguard .
           fi
